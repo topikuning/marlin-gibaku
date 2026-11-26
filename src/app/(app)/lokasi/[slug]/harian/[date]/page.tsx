@@ -10,10 +10,12 @@ import { requireUser, hasLocationAccess } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { ISSUE_SEVERITY_TONE, REPORT_STATUS_LABEL, REPORT_STATUS_TONE } from "@/lib/lifecycle";
 import { formatNumber, formatRupiah, formatTanggal, jakartaDateKey, parseDateKey } from "@/lib/format";
-import { getLeafNodeOptions, getWorkspaceData } from "@/lib/daily-report/queries";
+import { getLeafNodeOptions, getWorkspaceData, type WorkspaceItem } from "@/lib/daily-report/queries";
+import { pisahVolumeNol } from "@/lib/daily-report/volume-nol";
 import { ISSUE_SEVERITY_LABEL, WEATHER_LABEL, WORKER_ROLE_LABEL } from "@/lib/daily-report/constants";
 import { ReportEditor, TambahFotoSusulan } from "./report-editor";
 import { KumulatifItem, PenandaDraftAdendum } from "./kumulatif-item";
+import { TabelItemLipat } from "./tabel-item-lipat";
 import { PekerjaanLuarRab } from "./luar-rab";
 import { ImporLaporanPelaksana } from "./impor-pelaksana";
 import { PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN, STATUS_FOTO_SUSULAN } from "@/lib/daily-report/foto-susulan";
@@ -151,6 +153,55 @@ export default async function HarianWorkspacePage({
     : status && !editable
       ? `Laporan ini berstatus ${REPORT_STATUS_LABEL[status]}, jadi isinya tidak bisa diubah. Usulan hanya bisa dimasukkan selama laporan masih Draft atau Perlu Koreksi.`
       : null;
+  // Baris bervolume dulu; baris 0 dilipat di bawahnya (DECISIONS 787).
+  const terkirim = pisahVolumeNol(report?.items ?? []);
+  const fotoNol = terkirim.nol.filter((it) => it.photos.length > 0).length;
+  const barisTerkirim = (it: WorkspaceItem) => (
+    <tr key={it.id}>
+      <td className="py-2 pr-3 pl-4">
+        <div className="font-medium text-ink">{it.name}</div>
+        {/* Laporan user 2026-09-23: *"masuk kategori atau sub
+            kategori apa tidak diketahui"*. `code` sendiri tidak
+            menunjuk apa pun — nomor item hanya unik di dalam
+            induknya, jadi "1" ada di setiap kategori.
+            DECISIONS 605. */}
+        <div className="text-xs text-ink-muted">{it.jalurKode}</div>
+        {it.jalurNama ? (
+          <div className="text-[11px] text-ink-faint">{it.jalurNama}</div>
+        ) : null}
+        {it.diLuarRabAktif ? (
+          <div className="mt-0.5 inline-block rounded bg-warning-soft px-1.5 py-0.5 text-[11px] font-medium text-warning">
+            Tidak ada di RAB aktif – tidak dihitung di progres
+          </div>
+        ) : null}
+        <PenandaDraftAdendum item={it} />
+        {it.notes ? <div className="text-xs text-ink-faint">“{it.notes}”</div> : null}
+        {/* Foto bukti per item — reviewer bisa verifikasi tiap pekerjaan. */}
+        <FotoItemTerkirim
+          photos={it.photos}
+          user={user}
+          bolehHapusSusulan={bisaFotoSusulan}
+        />
+        {bisaFotoSusulan && it.photos.length === 0 ? (
+          <TambahFotoSusulan reportId={report?.id ?? ""} itemId={it.id} locationId={data.location.id} />
+        ) : null}
+      </td>
+      <td className="py-2 pr-3 text-right tabular whitespace-nowrap">
+        {formatNumber(it.volumeDone)} {it.unit ?? ""}
+      </td>
+      <td className="py-2 pr-3 text-right tabular whitespace-nowrap">
+        <KumulatifItem item={it} />
+      </td>
+      {lihatUang ? (
+        <td className="py-2 pr-4 text-right tabular whitespace-nowrap">
+          {formatRupiah(BigInt(it.valueDone))}
+          {it.basis === "draft_adendum" ? (
+            <div className="text-[11px] font-medium text-warning">belum resmi</div>
+          ) : null}
+        </td>
+      ) : null}
+    </tr>
+  );
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -264,7 +315,7 @@ export default async function HarianWorkspacePage({
       {showReadOnlyItems && report ? (
         <Card>
           <CardHeader
-            title={`Item pekerjaan (${report.items.length})`}
+            title={`Item pekerjaan (${terkirim.ada.length})`}
             subtitle={
               lihatUang
                 ? `Nilai hari ini ${formatRupiah(BigInt(report.totalValueToday))}` +
@@ -277,72 +328,38 @@ export default async function HarianWorkspacePage({
           <CardBody className="px-0 py-0">
             {/* Sekali di atas daftar, bukan di tiap pekerjaan: laporan lapangan
                 bisa memuat ratusan pekerjaan tanpa foto. DECISIONS 696. */}
-            {bisaFotoSusulan && report.items.some((it) => it.photos.length === 0) ? (
+            {bisaFotoSusulan && terkirim.ada.some((it) => it.photos.length === 0) ? (
               <p className="border-b border-border px-4 py-2 text-xs text-ink-muted">
                 Laporan ini sudah dikirim. Pekerjaan yang belum berfoto masih bisa diberi foto, dan fotonya
                 ditandai sebagai foto susulan. Volume dan progres tidak berubah.
               </p>
             ) : null}
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs text-ink-muted uppercase">
-                    <th className="py-2 pr-3 pl-4">Uraian</th>
-                    <th className="py-2 pr-3 text-right">Hari ini</th>
-                    <th className="py-2 pr-3 text-right">Kumulatif</th>
-                    {lihatUang ? <th className="py-2 pr-4 text-right">Nilai</th> : null}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {report.items.map((it) => (
-                    <tr key={it.id}>
-                      <td className="py-2 pr-3 pl-4">
-                        <div className="font-medium text-ink">{it.name}</div>
-                        {/* Laporan user 2026-09-23: *"masuk kategori atau sub
-                            kategori apa tidak diketahui"*. `code` sendiri tidak
-                            menunjuk apa pun — nomor item hanya unik di dalam
-                            induknya, jadi "1" ada di setiap kategori.
-                            DECISIONS 605. */}
-                        <div className="text-xs text-ink-muted">{it.jalurKode}</div>
-                        {it.jalurNama ? (
-                          <div className="text-[11px] text-ink-faint">{it.jalurNama}</div>
-                        ) : null}
-                        {it.diLuarRabAktif ? (
-                          <div className="mt-0.5 inline-block rounded bg-warning-soft px-1.5 py-0.5 text-[11px] font-medium text-warning">
-                            Tidak ada di RAB aktif – tidak dihitung di progres
-                          </div>
-                        ) : null}
-                        <PenandaDraftAdendum item={it} />
-                        {it.notes ? <div className="text-xs text-ink-faint">“{it.notes}”</div> : null}
-                        {/* Foto bukti per item — reviewer bisa verifikasi tiap pekerjaan. */}
-                        <FotoItemTerkirim
-                          photos={it.photos}
-                          user={user}
-                          bolehHapusSusulan={bisaFotoSusulan}
-                        />
-                        {bisaFotoSusulan && it.photos.length === 0 ? (
-                          <TambahFotoSusulan reportId={report.id} itemId={it.id} locationId={data.location.id} />
-                        ) : null}
-                      </td>
-                      <td className="py-2 pr-3 text-right tabular whitespace-nowrap">
-                        {formatNumber(it.volumeDone)} {it.unit ?? ""}
-                      </td>
-                      <td className="py-2 pr-3 text-right tabular whitespace-nowrap">
-                        <KumulatifItem item={it} />
-                      </td>
-                      {lihatUang ? (
-                        <td className="py-2 pr-4 text-right tabular whitespace-nowrap">
-                          {formatRupiah(BigInt(it.valueDone))}
-                          {it.basis === "draft_adendum" ? (
-                            <div className="text-[11px] font-medium text-warning">belum resmi</div>
-                          ) : null}
+            <TabelItemLipat
+              kolom={lihatUang ? 4 : 3}
+              kepala={
+                <tr className="border-b border-border text-left text-xs text-ink-muted uppercase">
+                  <th className="py-2 pr-3 pl-4">Uraian</th>
+                  <th className="py-2 pr-3 text-right">Hari ini</th>
+                  <th className="py-2 pr-3 text-right">Kumulatif</th>
+                  {lihatUang ? <th className="py-2 pr-4 text-right">Nilai</th> : null}
+                </tr>
+              }
+              utama={
+                terkirim.ada.length > 0
+                  ? terkirim.ada.map(barisTerkirim)
+                  : [
+                      <tr key="kosong">
+                        <td colSpan={lihatUang ? 4 : 3} className="px-4 py-3 text-sm text-ink-muted">
+                          Tidak ada pekerjaan bervolume hari ini.
                         </td>
-                      ) : null}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      </tr>,
+                    ]
+              }
+              /* Baris 0 dilipat, tidak dibuang: bisa membawa foto atau catatan.
+                 Blanko cetak tidak memuatnya. DECISIONS 787. */
+              lipat={terkirim.nol.map(barisTerkirim)}
+              labelLipat={`${terkirim.nol.length} pekerjaan bervolume 0${fotoNol > 0 ? ` (${fotoNol} berfoto)` : ""} – tidak ikut dicetak`}
+            />
           </CardBody>
         </Card>
       ) : null}

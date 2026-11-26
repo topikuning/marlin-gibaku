@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { getBranding } from "@/lib/branding";
 import { getKkpDailyData } from "@/lib/daily-report/queries";
 import { WORKER_ROLE_LABEL, WORKER_ROLE_ORDER } from "@/lib/daily-report/constants";
-import { barisRealisasiKkp, type KkpDailyData } from "@/components/knmp/kkp-daily-report";
+import { barisRealisasiKkp, itemDicetak, type KkpDailyData } from "@/components/knmp/kkp-daily-report";
 import { KKP_WEATHER_HOURS } from "@/lib/weather/hourly";
 import {
   PDF_COLORS,
@@ -377,7 +377,7 @@ export function tulisBadanHarian(
   // 2026-08-02, DECISIONS 214).
   const realisasiBaris = barisRealisasiKkp(d.items);
   const barisRR = Math.max(MIN_RR_ROWS, rencanaTeks.length, realisasiBaris.length);
-  let noLanjut = d.items.length;
+  let noLanjut = itemDicetak(d.items).length;
 
   /* Kepala DUA kolom sekaligus — diulang tiap kali blok ini pindah halaman,
      supaya lembar lanjutannya tetap bisa dibaca sendiri. */

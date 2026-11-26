@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ImagePlus, Search, Send, Trash2, X } from "lucide-react";
+import { ChevronRight, ImagePlus, Search, Send, Trash2, X } from "lucide-react";
 import { Banner, Button, Combobox, Input, Label, Textarea } from "@/components/ui";
 import { formatNumber, formatRupiah } from "@/lib/format";
 import {
@@ -19,6 +19,7 @@ import { ISSUE_SEVERITY_LABEL } from "@/lib/daily-report/constants";
 import { judulKendalaDariNihil } from "@/lib/daily-report/nihil";
 import { cariPekerjaan } from "@/lib/daily-report/cari-pekerjaan";
 import { batasLapor, keDraftAdendum } from "@/lib/daily-report/batas-lapor";
+import { pisahVolumeNol } from "@/lib/daily-report/volume-nol";
 import { KumulatifItem, PenandaDraftAdendum } from "./kumulatif-item";
 import { putarFotoAction } from "@/lib/photo-restamp/actions";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
@@ -999,29 +1000,46 @@ function ItemList({
       </p>
     );
   }
+  const { ada, nol } = pisahVolumeNol(items);
+  const baris = (it: WorkspaceItem) => (
+    <ItemRow
+      key={it.id}
+      reportId={reportId}
+      locationId={locationId}
+      slug={slug}
+      dateKey={dateKey}
+      item={it}
+      bolehHapusFoto={bolehHapusFoto}
+      photoEnabled={photoEnabled}
+      tanpaUang={tanpaUang}
+      kantongTerbuka={kantongUntuk === it.id}
+      onToggleKantong={() => setKantongUntuk((k) => (k === it.id ? null : it.id))}
+      onTutupKantong={() => setKantongUntuk(null)}
+    />
+  );
   return (
     <div className="rounded-lg border border-border bg-surface shadow-xs">
-      <div className="border-b border-border px-4 py-2.5 text-sm font-semibold text-ink">
-        Item hari ini ({items.length})
-      </div>
-      <ul className="divide-y divide-border">
-        {items.map((it) => (
-          <ItemRow
-            key={it.id}
-            reportId={reportId}
-            locationId={locationId}
-            slug={slug}
-            dateKey={dateKey}
-            item={it}
-            bolehHapusFoto={bolehHapusFoto}
-            photoEnabled={photoEnabled}
-            tanpaUang={tanpaUang}
-            kantongTerbuka={kantongUntuk === it.id}
-            onToggleKantong={() => setKantongUntuk((k) => (k === it.id ? null : it.id))}
-            onTutupKantong={() => setKantongUntuk(null)}
-          />
-        ))}
-      </ul>
+      <div className="border-b border-border px-4 py-2.5 text-sm font-semibold text-ink">Item hari ini ({ada.length})</div>
+      {ada.length > 0 ? (
+        <ul className="divide-y divide-border">{ada.map(baris)}</ul>
+      ) : (
+        <p className="px-4 py-3 text-sm text-ink-muted">Belum ada pekerjaan bervolume hari ini.</p>
+      )}
+      {/* Baris 0 dilipat, tidak dibuang: bisa membawa foto atau catatan.
+          Blanko cetak tidak memuatnya. DECISIONS 787. */}
+      {nol.length > 0 ? (
+        <details className="group border-t border-border">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-sm text-ink-muted hover:bg-surface-muted [&::-webkit-details-marker]:hidden">
+            <ChevronRight aria-hidden className="size-4 shrink-0 transition-transform group-open:rotate-90" />
+            <span>
+              {nol.length} pekerjaan bervolume 0
+              {nol.some((it) => it.photos.length > 0) ? ` (${nol.filter((it) => it.photos.length > 0).length} berfoto)` : ""} – tidak ikut
+              dicetak
+            </span>
+          </summary>
+          <ul className="divide-y divide-border border-t border-border">{nol.map(baris)}</ul>
+        </details>
+      ) : null}
     </div>
   );
 }

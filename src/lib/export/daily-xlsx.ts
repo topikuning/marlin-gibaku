@@ -1,6 +1,6 @@
 import "server-only";
 import ExcelJS from "exceljs";
-import { barisRencanaRealisasi, type KkpDailyData } from "@/components/knmp/kkp-daily-report";
+import { barisRencanaRealisasi, itemDicetak, type KkpDailyData } from "@/components/knmp/kkp-daily-report";
 import { WORKER_ROLE_LABEL, WORKER_ROLE_ORDER } from "@/lib/daily-report/constants";
 import { KKP_WEATHER_HOURS } from "@/lib/weather/hourly";
 import { tempelTtdXlsx, type GambarTtdXlsx } from "@/lib/export/xlsx-gaya";
@@ -354,10 +354,12 @@ export async function buildDailyReportXlsx(
   ];
   for (const [judul, c1, c2] of kolom) sel(r, c1, judul, { gabung: c2, kepala: true, rata: "center", bungkus: true });
   r += 1;
-  if (d.items.length === 0) {
+  // Baris bervolume 0 tidak dicetak – sama dengan blanko (DECISIONS 787).
+  const dicetak = itemDicetak(d.items);
+  if (dicetak.length === 0) {
     sel(r, 1, "Tidak ada progres pekerjaan pada hari ini.", { gabung: KOL_AKHIR });
   } else {
-    d.items.forEach((it, i) => {
+    dicetak.forEach((it, i) => {
       sel(r, 1, i + 1, { rata: "center" });
       // Kategori ditulis apa adanya; null = tidak ada lagi di RAB aktif, tidak ditebak.
       sel(r, 2, it.categoryName ? `${it.categoryCode ? `${it.categoryCode}. ` : ""}${it.categoryName}` : "–", {

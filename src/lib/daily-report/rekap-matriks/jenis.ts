@@ -73,6 +73,12 @@ export type SelMarlin = {
   catatanBaris?: string | null;
   /** Baris ini dipadankan dengan catatan pekerjaan di luar RAB (738) – tidak dibuang. */
   luarRab?: boolean;
+  /**
+   * Baris ini pernah dinolkan impor rekap harian (jejak audit). Hanya baris
+   * seperti ini yang boleh dibuang saat sudah 0 (787) – baris 0 lain bisa
+   * hasil aktivasi adendum yang dipakai Pasangkan realisasi.
+   */
+  nolImpor?: boolean;
 };
 
 export type LaporanMarlin = {
