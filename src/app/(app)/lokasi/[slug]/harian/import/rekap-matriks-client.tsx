@@ -148,6 +148,9 @@ function KartuItem({
 
 export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: string; slug: string; hasRab: boolean }) {
   const [file, setFile] = useState<File | null>(null);
+  // Berkas yang terakhir dibaca. Pratinjau hanya berlaku untuk berkas itu:
+  // memilih berkas lain menyembunyikannya sampai berkas baru dibaca.
+  const [fileDibaca, setFileDibaca] = useState<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<ModeImpor>("tambah");
   const [pindahFoto, setPindahFoto] = useState(false);
@@ -158,7 +161,8 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
   const [simpan, aksiSimpan, menyimpan] = useAksiKlik<RekapMatriksState>(simpanRekapMatriksAction, undefined, gagal);
 
   const selesai = simpan?.ok && simpan.fase === "selesai" ? simpan.hasil : null;
-  const bahan: BahanPratinjau | null = baca?.ok && baca.fase === "pratinjau" && !selesai ? baca.bahan : null;
+  const berkasSama = file != null && file === fileDibaca;
+  const bahan: BahanPratinjau | null = berkasSama && baca?.ok && baca.fase === "pratinjau" && !selesai ? baca.bahan : null;
   const rencana = useMemo(
     () => (bahan ? susunRencana(masukanRencana(bahan, { mode, tujuan, pilihan, pindahFoto })) : null),
     [bahan, mode, tujuan, pilihan, pindahFoto],
@@ -247,10 +251,11 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
           <Button type="button" size="sm" variant="secondary" onClick={() => inputRef.current?.click()}>
             <FileUp aria-hidden className="size-3.5" /> Pilih berkas Excel…
           </Button>
-          {file ? <span className="max-w-64 truncate text-xs text-ink-muted">{file.name}</span> : null}
-          <Button type="button" size="sm" variant="secondary" loading={membaca} disabled={!file} onClick={() => aksiBaca(formDasar())}>
-            <Upload aria-hidden className="size-3.5" /> Baca berkas
-          </Button>
+          {file ? (
+            <span className="min-w-0 max-w-64 truncate text-xs text-ink-muted">{file.name}</span>
+          ) : (
+            <span className="text-xs text-ink-muted">Belum ada berkas</span>
+          )}
         </div>
 
         <fieldset className="space-y-1.5">
@@ -272,7 +277,7 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
               <span className="text-ink-muted">
                 {" "}
                 – Excel jadi patokan untuk pekerjaan yang ada angkanya di Excel. Tanggal yang hanya ada di MARLIN (sampai
-                tanggal terakhir di Excel) dinolkan. Barisnya tidak dihapus dan fotonya tetap.
+                tanggal terakhir di Excel) dinolkan. Barisnya tidak dihapus.
               </span>
             </span>
           </label>
@@ -290,8 +295,31 @@ export function RekapMatriksClient({ locationId, slug, hasRab }: { locationId: s
           </span>
         </label>
 
-        {baca && !baca.ok ? <Banner tone="error" title={baca.error} /> : null}
-        {simpan && !simpan.ok ? <Banner tone="error" title={simpan.error} /> : null}
+        <div className="space-y-1.5 border-t border-border pt-3">
+          <Button
+            type="button"
+            size="sm"
+            variant={bahan ? "secondary" : "primary"}
+            loading={membaca}
+            disabled={!file}
+            onClick={() => {
+              setFileDibaca(file);
+              aksiBaca(formDasar());
+            }}
+          >
+            <Upload aria-hidden className="size-3.5" /> Baca berkas
+          </Button>
+          <p className="text-xs text-ink-muted">
+            {bahan
+              ? "Cara memasukkan dan pilihan foto bisa diganti kapan saja – pratinjau di bawah langsung ikut berubah, berkas tidak perlu dibaca lagi."
+              : file
+                ? "Belum ada yang disimpan. Pratinjau muncul di bawah, lalu Anda yang memutuskan."
+                : "Pilih berkas Excel dulu."}
+          </p>
+        </div>
+
+        {berkasSama && baca && !baca.ok ? <Banner tone="error" title={baca.error} /> : null}
+        {berkasSama && simpan && !simpan.ok ? <Banner tone="error" title={simpan.error} /> : null}
 
         {bahan && rencana ? (
           <div className="space-y-4">
