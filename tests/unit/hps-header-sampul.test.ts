@@ -68,6 +68,89 @@ describe("blok identitas di sampul", () => {
   });
 });
 
+/**
+ * Laporan user 2026-11-27 (MINANGA TIGA CCO – REV TIME SCHEDULE, sheet
+ * "RAB MC0 MINANGA TIGA"): dari 13 kategori hanya I, V, dan X yang terbaca;
+ * sepuluh lainnya tertelan ke kategori di atasnya dan Tambatan Perahu serta
+ * DPT tampil "hilang dari berkas".
+ *
+ * Pemicunya label "SATKER" di blok identitas. Penjaga lama menganggap baris
+ * sebagai header tabel bila tetangganya memuat label berawalan "SAT" – maksudnya
+ * SATUAN – jadi "NAMA PAKET" di bawahnya dikira judul kolom uraian, dan kolom
+ * kode jatuh ke kolom A yang kosong. Yang terbaca benar hanya kode satu huruf
+ * (I, V, X) karena lolos lewat jalur huruf rincian.
+ */
+async function berkasSatker(labelSatker: string): Promise<ExcelJS.Workbook> {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("RAB MC0");
+  ws.addRow(["", "LAMPIRAN MUTUAL CEK AWAL (MC 0%)"]);
+  ws.addRow([]);
+  ws.addRow(["", "K/L/P/D", "", ":", "KEMENTERIAN KELAUTAN DAN PERIKANAN"]);
+  // ↓ pemicunya: "SATKER" berawalan SAT, "NAMA PAKET" cocok dengan URAIAN_RE.
+  ws.addRow(["", labelSatker, "", ":", "SEKRETARIAT JENDERAL PERIKANAN TANGKAP"]);
+  ws.addRow(["", "NAMA PAKET", "", ":", "PEMBANGUNAN KAMPUNG NELAYAN"]);
+  ws.addRow(["", "LOKASI", "", ":", "DESA MINANGA TIGA"]);
+  ws.addRow([]);
+  // Header dua baris, tanpa kata URAIAN: "JENIS PEKERJAAN", lalu VOL/SAT di bawahnya.
+  ws.addRow(["", "NO", "JENIS PEKERJAAN", "", "", "VOL", "SAT", "HARGA SATUAN", "JUMLAH HARGA"]);
+  ws.addRow([]);
+  ws.addRow(["", "I", "PEKERJAAN PERSIAPAN"]);
+  ws.addRow(["", "1", "Buat Bedeng Pekerja", "", "", 50, "m2", 1_300_000, 65_000_000]);
+  ws.addRow(["", "II", "PEKERJAAN TAMBATAN PERAHU"]);
+  ws.addRow(["", "II.1", "Pekerjaan Struktur"]);
+  ws.addRow(["", "1", "Beton K-300", "", "", 10, "m3", 2_000_000, 20_000_000]);
+  ws.addRow(["", "III", "PEKERJAAN DINDING PENAHAN TANAH"]);
+  ws.addRow(["", "1", "Pasangan Batu", "", "", 20, "m3", 1_000_000, 20_000_000]);
+  return wb;
+}
+
+describe("label SATKER di blok identitas", () => {
+  for (const label of ["SATKER", "SATUAN KERJA"]) {
+    it(`"${label}": kolom kode tetap B dan ketiga kategori terbaca terpisah`, async () => {
+      const wb = await berkasSatker(label);
+      const ws = wb.getWorksheet("RAB MC0")!;
+      expect(detectCodeColumn(ws, detectColumns(ws).col.vol)).toBe(2);
+      const { parsed } = parseHpsWorkbook(wb);
+      expect(parsed.categories.map((k) => [k.roman, k.total_value])).toEqual([
+        ["I", 65_000_000],
+        ["II", 20_000_000],
+        ["III", 20_000_000],
+      ]);
+      expect(parsed.categories[0].direct_items[0]).toMatchObject({ code: "1", name: "Buat Bedeng Pekerja" });
+      expect(parsed.categories[1].subcategories[0]).toMatchObject({ code: "II.1", name: "Pekerjaan Struktur" });
+    });
+  }
+});
+
+describe("pekerjaan bernama nomor = kolom nomor salah tebak", () => {
+  /**
+   * Judul kolom nomor bertuliskan "NAMA" (salah tulis penyusun): kolom uraian
+   * dikira B, kolom kode jatuh ke kolom A yang kosong – bentuk kegagalan
+   * MINANGA TIGA/GEMPOLSEWU lewat sebab lain. Nomor di kolom B lalu terbaca
+   * sebagai nama pekerjaan.
+   */
+  async function berkasTanpaLabelNo(jumlah: number): Promise<ExcelJS.Workbook> {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("RAB");
+    ws.addRow(["", "NAMA", "", "", "", "VOL", "SAT", "HARGA SATUAN", "JUMLAH HARGA"]);
+    ws.addRow(["", "I", "PEKERJAAN PERSIAPAN"]);
+    for (let i = 1; i <= jumlah; i++) ws.addRow(["", String(i), `Pekerjaan ${i}`, "", "", 1, "ls", 1_000_000, 1_000_000]);
+    return wb;
+  }
+
+  it("ditolak dengan menyebut barisnya, bukan diteruskan ke pratinjau", async () => {
+    const wb = await berkasTanpaLabelNo(12);
+    expect(() => parseHpsWorkbook(wb)).toThrow(
+      /12 dari 12 pekerjaan terbaca bernama nomor \(baris 3 "1", baris 4 "2", baris 5 "3", …\)/,
+    );
+  });
+
+  it("di bawah 10 baris tidak ditolak – terlalu sedikit untuk disimpulkan", async () => {
+    const wb = await berkasTanpaLabelNo(9);
+    expect(() => parseHpsWorkbook(wb)).not.toThrow();
+  });
+});
+
 describe("bacaan yang mustahil ditolak, bukan diteruskan", () => {
   /**
    * Berkas yang menulis totalnya sendiri jauh DI ATAS Σ item yang terbaca.
