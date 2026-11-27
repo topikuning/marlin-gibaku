@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 800 | 2026-11-27 | Panel lokasi di peta menampilkan angka Kawal KNMP (progres, minggu, rencana, deviasi, tanggal data – apa adanya) hanya untuk peran ber-`kawal.view`; tombol jadi "Detail →" dan "Maps", sebaris dan berukuran sama |
 | 799 | 2026-11-27 | Peta lokasi: penanda bergaya baru (tepi putih + bayangan, ukuran ikut perbesaran, sudah lapor = lingkaran cahaya sewarna, belum lapor = cincin abu tipis, bukan hitam tebal); legenda jadi satu baris chip di bawah peta di semua ukuran layar, tidak lagi menutupi titik |
 | 798 | 2026-11-27 | Item bervolume 0 di RAB aktif tidak muncul di mana pun kecuali di perbandingan (ketetapan user; satu definisi `item-nol.ts`): pohon RAB tanpa tombol tampilkan, pemilih laporan harian/WA/rencana/impor pelaksana/Pasangkan, Excel RAB & Time Schedule rinci & templat rekap, RAPL, backup, kategori bernilai 0 di laporan lokasi/paparan/sarpras/Kawal; barisnya tetap tersimpan |
 | 797 | 2026-11-27 | Tombol "Samakan kurva-S semua lokasi dengan RAB aktif" (halaman Progress): per lokasi = simpan kurva manual 795 dengan titik kurva yang sama – jadwal per pekerjaan disusun ulang dari RAB aktif, rencana & deviasi tetap; lokasi yang sudah sesuai tidak disentuh; hasil per lokasi disebut |

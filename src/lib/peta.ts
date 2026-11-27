@@ -114,6 +114,23 @@ export type LocationSnapshot = {
   weekNumber: number;
   totalWeeks: number;
   lastReport: { date: string; status: DailyReportStatus } | null;
+  /**
+   * Angka Kawal KNMP terbaru untuk lokasi yang berpasangan (DECISIONS 800) –
+   * rujukan, bukan angka resmi; apa adanya dari Kawal. Diisi rute API HANYA
+   * untuk peran ber-`kawal.view`; tanpa itu, atau tanpa pasangan, null.
+   */
+  kawal?: KawalPanelPeta | null;
+};
+
+/** Ringkasan Kawal untuk panel peta – angka saja, tanpa nama orang atau rupiah. */
+export type KawalPanelPeta = {
+  realisasiPct: number | null;
+  rencanaPct: number | null;
+  deviasiPct: number | null;
+  mingguKe: number | null;
+  totalMinggu: number | null;
+  /** ISO – kapan data Kawal ini diambil. */
+  diambil: string;
 };
 
 /** Ringkasan 1 lokasi untuk panel detail peta. null bila lokasi tidak ada. */

@@ -24,11 +24,14 @@ export function TautanGoogleMaps({
   lat,
   lng,
   rupa = "teks",
+  label = "Buka di Google Maps",
   className,
 }: {
   lat: number | string | null | undefined;
   lng: number | string | null | undefined;
   rupa?: "teks" | "tombol" | "ikon";
+  /** Teks tombol/tautan; panel sempit (peta) memakai "Maps". */
+  label?: string;
   className?: string;
 }) {
   const href = tautanGoogleMaps(lat, lng);
@@ -61,7 +64,7 @@ export function TautanGoogleMaps({
     return (
       <a {...umum} className={buttonClass("secondary", "sm", cn("gap-1.5", className))}>
         <MapPin aria-hidden className="size-3.5" />
-        Buka di Google Maps
+        {label}
       </a>
     );
   }
@@ -75,7 +78,7 @@ export function TautanGoogleMaps({
       )}
     >
       <MapPin aria-hidden className="size-3.5 shrink-0" />
-      Buka di Google Maps
+      {label}
     </a>
   );
 }

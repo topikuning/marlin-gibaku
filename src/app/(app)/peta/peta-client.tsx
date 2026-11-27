@@ -3,10 +3,10 @@
 import { useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { X } from "lucide-react";
+import { ArrowRight, X } from "lucide-react";
 import { TautanGoogleMaps } from "@/components/knmp/tautan-google-maps";
 import type { LocationStatus } from "@/generated/prisma/enums";
-import type { LocationSnapshot, PetaMarker } from "@/lib/peta";
+import type { KawalPanelPeta, LocationSnapshot, PetaMarker } from "@/lib/peta";
 import type { SumberPeta } from "@/lib/peta/gaya";
 import {
   LOCATION_STATUS_LABEL,
@@ -15,7 +15,7 @@ import {
   REPORT_STATUS_TONE,
 } from "@/lib/lifecycle";
 import { formatPct, formatRupiahShort, formatTanggal } from "@/lib/format";
-import { Input, Combobox, StatusPill } from "@/components/ui";
+import { Input, Combobox, StatusPill, buttonClass } from "@/components/ui";
 import { DeltaBadge } from "@/components/ui/stat-delta";
 import { statusColorCss } from "./status-color";
 
@@ -334,6 +334,8 @@ function SnapshotPanel({
         <DeltaBadge value={snap.deviationPct} />
       </div>
 
+      {snap.kawal ? <KawalRingkas kawal={snap.kawal} /> : null}
+
       <div className="mb-1 text-[10px] font-semibold tracking-widest text-primary uppercase">
         Laporan terakhir
       </div>
@@ -349,15 +351,56 @@ function SnapshotPanel({
         <p className="mb-3 text-xs text-ink-faint">Belum ada laporan harian.</p>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        <Link
-          href={`/lokasi/${snap.slug}`}
-          className="inline-flex h-8 items-center justify-center rounded-md border border-transparent bg-primary px-3 text-[13px] font-medium text-white transition-colors hover:bg-primary-800 pointer-coarse:min-h-11"
-        >
-          Buka detail lokasi →
+      {/* Dua tombol pendek sebaris (permintaan user 2026-11-27: "rapikan tombol
+          supaya tidak terlalu panjang, buka detail lokasi, cukup jadi detail"). */}
+      <div className="flex gap-2">
+        <Link href={`/lokasi/${snap.slug}`} className={buttonClass("primary", "sm", "gap-1.5")}>
+          Detail
+          <ArrowRight aria-hidden className="size-3.5" />
         </Link>
-        <TautanGoogleMaps rupa="tombol" lat={titik?.lat} lng={titik?.lng} />
+        <TautanGoogleMaps rupa="tombol" label="Maps" lat={titik?.lat} lng={titik?.lng} />
       </div>
     </>
+  );
+}
+
+/**
+ * ANGKA KAWAL KNMP di panel peta (DECISIONS 800) – permintaan user 2026-11-27:
+ * *"informasi kawal juga tampilkan di sini"*. Rujukan, bukan angka resmi:
+ * ditampilkan apa adanya dari Kawal (tanpa dihitung ulang), dengan tanggal
+ * datanya, dan bentuknya sengaja sama dengan baris progres MARLIN di atasnya
+ * supaya keduanya bisa dibandingkan sekilas.
+ */
+function KawalRingkas({ kawal }: { kawal: KawalPanelPeta }) {
+  const pct = (v: number | null) => (v == null ? "–" : formatPct(v));
+  return (
+    <div className="mb-3 rounded-md border border-border bg-surface-muted px-2.5 py-2">
+      <div className="mb-1 flex items-baseline justify-between gap-2">
+        <span className="text-[10px] font-semibold tracking-widest text-primary uppercase">Kawal KNMP</span>
+        <span className="text-[10px] text-ink-faint">per {formatTanggal(new Date(kawal.diambil))}</span>
+      </div>
+      <div className="mb-1 flex items-center justify-between text-xs">
+        <span className="text-ink-muted">
+          Progress{kawal.mingguKe != null ? ` · minggu ${kawal.mingguKe}${kawal.totalMinggu ? `/${kawal.totalMinggu}` : ""}` : ""}
+        </span>
+        <span className="font-semibold text-ink tabular-nums">{pct(kawal.realisasiPct)}</span>
+      </div>
+      <div className="relative mb-1 h-1.5 w-full overflow-hidden rounded-full bg-surface-inset">
+        <div
+          className="h-full rounded-full bg-info"
+          style={{ width: `${Math.min(Math.max(kawal.realisasiPct ?? 0, 0), 100)}%` }}
+        />
+        {kawal.rencanaPct != null ? (
+          <div
+            className="absolute top-0 h-full w-0.5 bg-danger"
+            style={{ left: `${Math.min(Math.max(kawal.rencanaPct, 0), 100)}%` }}
+          />
+        ) : null}
+      </div>
+      <div className="flex items-center gap-1.5 text-[11px] text-ink-muted">
+        <span>Rencana {pct(kawal.rencanaPct)} · deviasi</span>
+        {kawal.deviasiPct != null ? <DeltaBadge value={kawal.deviasiPct} /> : <span>–</span>}
+      </div>
+    </div>
   );
 }
