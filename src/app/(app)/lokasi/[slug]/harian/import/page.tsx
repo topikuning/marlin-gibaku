@@ -30,7 +30,8 @@ export default async function ImporRekapHarianPage({ params }: { params: Promise
   if (!location) notFound();
   await requireLocationAccess(user, location.id);
 
-  const leaves = await getRecapLeaves(location.id);
+  // Item yang dinolkan adendum/CCO tidak dihitung (DECISIONS 798).
+  const leaves = (await getRecapLeaves(location.id)).filter((l) => !l.dinolkan);
 
   return (
     <div className="space-y-5">

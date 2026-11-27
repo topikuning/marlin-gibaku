@@ -11,6 +11,7 @@ import { getLastSubmittedReportDates } from "@/lib/daily-report/queries";
 import { weightedPct, weightedRealizedPct } from "@/lib/progress-calc";
 import { formatRupiahShort, formatPct, formatTanggal, jakartaToday } from "@/lib/format";
 import { ProgressGrid, type ProgressRow } from "./progress-grid";
+import { SamakanKurvaSemua } from "./samakan-kurva";
 
 export const metadata: Metadata = { title: "Progress" };
 export const dynamic = "force-dynamic";
@@ -119,6 +120,17 @@ export default async function ProgressPage() {
           <ProgressGrid rows={rows} tanpaUang={!lihatUang} />
         </CardBody>
       </Card>
+      {can(user.role, "baseline.manage") ? (
+        <Card>
+          <CardHeader
+            title="Kurva-S vs RAB aktif"
+            subtitle="Sesudah adendum, CCO, atau koreksi RAB, jadwal per pekerjaan di kurva-S bisa masih menunjuk RAB lama."
+          />
+          <CardBody>
+            <SamakanKurvaSemua />
+          </CardBody>
+        </Card>
+      ) : null}
     </div>
   );
 }

@@ -25,7 +25,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Anda tidak punya akses ke lokasi ini." }, { status: 403 });
   }
 
-  const leaves = await getRecapLeaves(location.id);
+  // Item yang dinolkan adendum/CCO tidak dicetak (DECISIONS 798).
+  const leaves = (await getRecapLeaves(location.id)).filter((l) => !l.dinolkan);
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Rekap Harian");

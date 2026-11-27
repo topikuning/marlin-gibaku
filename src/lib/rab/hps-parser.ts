@@ -242,6 +242,20 @@ function labelsOf(row: ExcelJS.Row): string[] {
   return arr;
 }
 
+/**
+ * Baris judul kolom tabel RAB: memuat label VOL… DAN label SAT… sekaligus.
+ *
+ * Satu definisi untuk semua pencari header. Syarat "keduanya" penting: label
+ * berawalan SAT saja juga muncul di blok identitas – "SATKER", "SATUAN KERJA"
+ * – dan blok itu tidak pernah memuat label volume. Laporan user 2026-11-27
+ * (MINANGA TIGA CCO): penjaga yang menerima VOL *atau* SAT menganggap baris
+ * "NAMA PAKET" di sebelah "SATKER" sebagai header, kolom kode jatuh ke kolom A
+ * yang kosong, dan 10 dari 13 kategori tertelan ke kategori di atasnya.
+ */
+function barisJudulTabel(L: readonly (string | undefined)[]): boolean {
+  return L.some((l) => /^VOL/.test(l ?? "")) && L.some((l) => /^SAT/.test(l ?? ""));
+}
+
 /** Blok harga: HPS (pagu) | PENAWARAN | NEGOSIASI (hasil klarifikasi). */
 const BLOCK_RE = /HPS|PENAWAR|NEGO/;
 
@@ -344,8 +358,7 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
   // dan yang berkop panjang bisa lebih jauh lagi. Loop berhenti di temuan pertama.
   let mainRow: ExcelJS.Row | null = null;
   for (let rn = 1; rn <= 60; rn++) {
-    const L = labelsOf(ws.getRow(rn));
-    if (L.some((l) => /^VOL/.test(l)) && L.some((l) => /^SAT/.test(l))) {
+    if (barisJudulTabel(labelsOf(ws.getRow(rn)))) {
       mainRow = ws.getRow(rn);
       break;
     }
@@ -616,13 +629,14 @@ export function detectCodeColumn(ws: ExcelJS.Worksheet, batas: number): number {
    * sebagai "1 item pekerjaan · Rp 1".
    *
    * Syaratnya sekarang: baris itu — atau tetangga langsungnya, sebab header
-   * dua baris lazim — harus juga memuat label VOL/SAT. Blok identitas tidak
-   * pernah punya keduanya.
+   * dua baris lazim — harus berupa baris judul kolom (`barisJudulTabel`: label
+   * VOL DAN SAT di baris yang sama). Blok identitas tidak pernah punya keduanya.
+   * Dulu cukup salah satu, dan "SATKER" di sampul MC0 MINANGA TIGA meloloskan
+   * "NAMA PAKET" sebagai header (laporan user 2026-11-27).
    */
   const headerTabelDi = (rn: number): boolean => {
     for (let r = Math.max(1, rn - 1); r <= Math.min(maxRow, rn + 1); r++) {
-      const L = labelsOf(ws.getRow(r));
-      if (L.some((l) => /^VOL|^SAT/.test(l ?? ""))) return true;
+      if (barisJudulTabel(labelsOf(ws.getRow(r)))) return true;
     }
     return false;
   };
@@ -919,8 +933,7 @@ export function ringkasKolom(ws: ExcelJS.Worksheet): KolomBerkas[] {
   const sembunyi = kolomTersembunyi(ws, lebar);
   let h = 0;
   for (let rn = 1; rn <= Math.min(60, ws.rowCount) && !h; rn++) {
-    const L = labelsOf(ws.getRow(rn));
-    if (L.some((l) => /^VOL/.test(l)) && L.some((l) => /^SAT/.test(l))) h = rn;
+    if (barisJudulTabel(labelsOf(ws.getRow(rn)))) h = rn;
   }
   if (!h) {
     for (let rn = 1; rn <= Math.min(60, ws.rowCount) && !h; rn++) {
@@ -2087,6 +2100,45 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook, kolom?: KolomManual): Par
         `Kolom nilainya kemungkinan besar tidak terdeteksi – periksa baris header berkas ini (VOLUME / SATUAN / ` +
         `HARGA SATUAN / JUMLAH harus berada tepat di atas kolom angkanya), lalu unggah ulang.`,
     );
+
+  /*
+   * NAMA PEKERJAAN YANG BERUPA NOMOR = kolom nomor salah tebak.
+   *
+   * Laporan user 2026-11-27 (MINANGA TIGA CCO): kolom kode jatuh ke kolom A
+   * yang kosong, jadi nomor di kolom B ("1", "2", "II", "II.1.") terbaca
+   * sebagai NAMA pekerjaan dan 10 dari 13 kategori tertelan ke kategori di
+   * atasnya. Total seluruh berkas tetap sama – nilainya hanya pindah kategori –
+   * sehingga pembanding total di atas diam. Bentuk kegagalan yang sama dengan
+   * GEMPOLSEWU 2026-09-07; sebabnya bisa lain lagi di berkas berikutnya.
+   *
+   * RAB sungguhan tidak punya pekerjaan bernama "1" atau "II.1.": pada 7 berkas
+   * uji nyata jumlahnya 0 (satu berkas 1 sel angka). Bacaan yang memuat banyak
+   * nama seperti itu mustahil benar, jadi DITOLAK, bukan diteruskan ke
+   * pratinjau dengan pembagian kategori yang keliru.
+   */
+  const semuaItem: ParsedRabItem[] = [];
+  const kumpulItem = (xs: ParsedRabItem[]) => {
+    for (const x of xs) {
+      semuaItem.push(x);
+      kumpulItem(x.children);
+    }
+  };
+  for (const k of categories) {
+    kumpulItem(k.direct_items);
+    for (const sc of k.subcategories) kumpulItem(sc.items);
+  }
+  const bernamaNomor = semuaItem.filter((x) => berbentukKode(x.name.trim()));
+  if (bernamaNomor.length >= 10 && bernamaNomor.length >= semuaItem.length * 0.05) {
+    const contoh = bernamaNomor
+      .slice(0, 3)
+      .map((x) => (x.excel_row ? `baris ${x.excel_row} "${x.name.trim()}"` : `"${x.name.trim()}"`))
+      .join(", ");
+    throw new Error(
+      `Sheet "${ws.name}" terbaca keliru: ${bernamaNomor.length} dari ${semuaItem.length} pekerjaan terbaca ` +
+        `bernama nomor (${contoh}, …). Artinya kolom NO tidak dikenali, dan pembagian kategorinya pasti salah. ` +
+        `Hasil bacaan ini tidak dipakai. Laporkan berkasnya ke admin MARLIN supaya cara bacanya diperbaiki.`,
+    );
+  }
 
   if (totalDitulis != null && total > 0) {
     const bedaPpn = [0.11, 0.12].some((p) => Math.abs(totalDitulis - total * (1 + p)) <= total * 0.005);

@@ -21,17 +21,25 @@ const dasborPeta = baca("src/app/(app)/aktivitas/dashboard-map.tsx");
 const petaKlien = baca("src/app/(app)/peta/peta-client.tsx");
 
 describe("legenda peta dasbor", () => {
-  it("hanya menumpang peta di layar lebar", () => {
-    const overlay = /className="pointer-events-none absolute[^"]*"/.exec(dasborPeta)?.[0] ?? "";
-    expect(overlay, "kotak legenda menumpang tidak ketemu").not.toBe("");
-    expect(overlay).toContain("hidden");
-    expect(overlay).toContain("sm:block");
+  /*
+   * Sejak DECISIONS 799 legenda TIDAK PERNAH menumpang peta, di ukuran layar
+   * mana pun. Teguran user 2026-11-27: *"keterangan itu menutupi informasi
+   * utamanya"* – kotak legenda di pojok kiri-bawah layar lebar menutupi titik
+   * Jawa–Bali. Dulu (2026-09-06) hanya HP yang dibebaskan.
+   */
+  it("tidak ada kotak legenda yang menumpang peta", () => {
+    expect(dasborPeta).not.toMatch(/absolute[^"]*"[^>]*>\s*<Legenda/);
+    expect(dasborPeta.match(/<Legenda \/>/g) ?? []).toHaveLength(1);
   });
 
-  it("di HP legenda berada DI BAWAH peta, di luar kotak petanya", () => {
-    const sesudahKotak = dasborPeta.slice(dasborPeta.indexOf("</div>\n\n      {/* Legenda versi HP"));
-    expect(sesudahKotak, "legenda versi HP harus di luar kotak peta").toContain("sm:hidden");
-    expect(sesudahKotak).toContain("<Legenda />");
+  it("legenda berada DI BAWAH kotak peta, untuk semua ukuran layar", () => {
+    const kotakPeta = dasborPeta.indexOf('className="relative min-h-[300px] flex-1');
+    const tutupKotak = dasborPeta.indexOf("</div>", dasborPeta.indexOf("<PetaMap", kotakPeta));
+    const legenda = dasborPeta.indexOf("<Legenda />");
+    expect(kotakPeta).toBeGreaterThan(-1);
+    expect(legenda, "legenda harus sesudah kotak peta ditutup").toBeGreaterThan(tutupKotak);
+    // Tidak ada lagi versi "khusus HP" / "khusus layar lebar".
+    expect(dasborPeta).not.toContain("sm:hidden");
   });
 
   it("peta dasbor tidak lebih pendek dari 300px", () => {

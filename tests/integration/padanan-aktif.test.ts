@@ -228,8 +228,8 @@ describe("yang belum dipasangkan sesudah aktivasi disebut; tujuannya semua item 
       ["I#2", "dinolkan", 2, 1],
     ]);
     expect(d.belum.every((b) => b.terhalang === null)).toBe(true);
+    // I#2 yang dinolkan bukan tujuan: item dinolkan tidak muncul di daftar pilihan (798).
     expect(d.calon.map((c) => [c.lineageKey, c.unit, c.sisa])).toEqual([
-      ["I#2", "m3", 0],
       ["I#3", "m3", 7],
       ["I#4", "m2", 12],
       ["II#1", "m2", 40],
@@ -445,8 +445,8 @@ describe("catatan pekerjaan di luar RAB dipasangkan ke item RAB aktif", () => {
     const k = d.luarRab[0]!;
     expect([k.catatanIds.sort(), k.volume, k.jumlahLaporan, k.tertahan?.jumlah]).toEqual([[c1, c2, c3].sort(), 4.5, 2, 1]);
     expect(k.saran[0]).toBe("I#3");
-    // Tujuan: semua item pekerjaan RAB aktif (781).
-    expect(d.calon.map((c) => c.lineageKey)).toEqual(["I#2", "I#3", "I#4", "II#1", "II#9"]);
+    // Tujuan: semua item pekerjaan RAB aktif (781), kecuali yang dinolkan (798).
+    expect(d.calon.map((c) => c.lineageKey)).toEqual(["I#3", "I#4", "II#1", "II#9"]);
 
     // Catatan di laporan yang belum dikirim tidak bisa ikut.
     const draftId = (await db.pekerjaanLuarRab.findFirstOrThrow({ where: { reportId: r12 } })).id;

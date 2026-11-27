@@ -1,6 +1,7 @@
 import "server-only";
 import type { WorkerRole } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
+import { itemDinolkan } from "@/lib/rab/item-nol";
 import { audit } from "@/lib/audit";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
 import { parseDateKey } from "@/lib/format";
@@ -64,7 +65,7 @@ export async function kandidatImpor(locationId: string, reportId: string | null)
   const [nodes, kumAktif, kumSemua, diLaporan] = await Promise.all([
     db.rabNode.findMany({
       where: { revisionId: { in: revisi.map((r) => r.id) } },
-      select: { id: true, revisionId: true, parentId: true, kind: true, code: true, name: true, unit: true, volume: true, lineageKey: true, sortOrder: true },
+      select: { id: true, revisionId: true, parentId: true, kind: true, code: true, name: true, unit: true, volume: true, amount: true, lineageKey: true, sortOrder: true },
       orderBy: [{ sortOrder: "asc" }, { lineageKey: "asc" }],
     }),
     cumulativeVolumeByLineage(locationId),
@@ -82,7 +83,9 @@ export async function kandidatImpor(locationId: string, reportId: string | null)
     return hasil;
   };
   return nodes
-    .filter((n) => n.kind === "item")
+    // Item yang dinolkan tidak bisa jadi tujuan (DECISIONS 798); kalau draft
+    // adendum menaikkannya lagi, versi draft-nya tetap ada di daftar ini.
+    .filter((n) => n.kind === "item" && !itemDinolkan(n))
     .map((n) => {
       const basis = statusRev.get(n.revisionId) === "aktif" ? ("aktif" as const) : ("draft_adendum" as const);
       const volumeRab = n.volume != null ? Number(n.volume) : null;

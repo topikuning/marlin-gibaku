@@ -129,7 +129,8 @@ export async function susunDokumentasiSarpras(locationId: string): Promise<Dokum
 
   const hariIni = jakartaDateKey(new Date());
   const grandTotal = Number(rev.totalValue);
-  const sarpras: Sarpras[] = akar.map((a) => {
+  // Kategori bernilai 0 (dinolkan CCO, mis. Tambatan) tidak ditampilkan (DECISIONS 798).
+  const sarpras: Sarpras[] = akar.filter((a) => Number(a.amount) !== 0).map((a) => {
     const items = (itemPerAkar.get(a.lineageKey) ?? []).map((n) => ({
       lineageKey: n.lineageKey,
       amount: Number(n.amount),

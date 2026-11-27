@@ -23,6 +23,7 @@ import { permintaanWaMenunggu } from "@/lib/rab/persetujuan-wa";
 import { bolehMenyetujui } from "@/lib/rab/persetujuan-aturan";
 import { getRencanaMingguan } from "@/lib/plan/rencana-mingguan";
 import { bacaJadwalAi } from "@/lib/plan/jadwal-ai";
+import { itemDinolkan } from "@/lib/rab/item-nol";
 import { akhirKontrakBerlaku, weekDateRange } from "@/lib/progress-calc";
 import {
   WeeklyPlanSection,
@@ -107,7 +108,10 @@ export default async function RabPage({
   const butuhNode = bagian === "rab" || bagian === "rencana";
   const [itemCount, nodes] = await Promise.all([
     active
-      ? db.rabNode.count({ where: { revisionId: active.id, kind: "item" } })
+      ? // Item yang dinolkan tidak ikut dihitung (DECISIONS 798).
+        db.rabNode.count({
+          where: { revisionId: active.id, kind: "item", NOT: { OR: [{ volume: null }, { volume: 0 }], amount: 0 } },
+        })
       : Promise.resolve(0),
     active && butuhNode
       ? db.rabNode.findMany({
@@ -338,8 +342,9 @@ export default async function RabPage({
     realizedVolume: realizedByLineage.get(it.rabNode.lineageKey) ?? 0,
   }));
 
+  // Item yang dinolkan adendum/CCO tidak bisa direncanakan (DECISIONS 798).
   const leafOptions: LeafOption[] = nodeRows
-    .filter((n) => n.kind === "item")
+    .filter((n) => n.kind === "item" && !itemDinolkan(n))
     .map((n) => ({ id: n.id, code: n.code, name: n.name, unit: n.unit, volume: n.volume }));
 
   const weekPeriod =

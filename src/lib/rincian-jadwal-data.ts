@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { tanpaSimpulNol } from "@/lib/rab/item-nol";
 import { deriveCategorySchedule } from "@/lib/baseline";
 import { buildKurvaSheet, type KurvaSheet } from "@/lib/scurve/kkp-sheet";
 import type { PeriodReport } from "@/lib/periodic-report";
@@ -58,7 +59,8 @@ export async function muatRincianJadwal(
   });
   if (nodes.length === 0) return null;
 
-  const simpul: SimpulRab[] = nodes.map((n) => ({
+  // Item yang dinolkan adendum/CCO tidak ikut dirinci (DECISIONS 798).
+  const simpul: SimpulRab[] = tanpaSimpulNol(nodes).map((n) => ({
     id: n.id,
     parentId: n.parentId,
     kind: n.kind,

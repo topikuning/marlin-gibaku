@@ -299,7 +299,8 @@ export async function buatSnapshotPaparan(
     const nodes = nodesPerRevisi.get(revId) ?? [];
     const volCum = volCumPerLokasi.get(l.id) ?? new Map<string, number>();
     const kelompok: KategoriLokasiPaparan["kelompok"] = [];
-    for (const kat of nodes.filter((n) => n.kind === "kategori")) {
+    // Kategori bernilai 0 (dinolkan CCO, mis. Tambatan) tidak ditampilkan (DECISIONS 798).
+    for (const kat of nodes.filter((n) => n.kind === "kategori" && Number(n.amount) !== 0)) {
       const akar = kat.lineageKey;
       const items = nodes.filter(
         (n) => n.kind === "item" && (n.lineageKey === akar || n.lineageKey.startsWith(`${akar}#`)),
