@@ -61,10 +61,7 @@ export async function updateBaselinePoints(baselineId: string, points: number[],
   const invalid = validateBaselinePoints(points);
   if (invalid) throw new Error(invalid);
 
-  const ref = await db.baseline.findUniqueOrThrow({
-    where: { id: baselineId },
-    select: { locationId: true, contractDays: true, rabRevisionId: true, baselineNo: true, profil: true },
-  });
+  const ref = await bacaAcuanBaseline(baselineId);
   // Jumlah minggu boleh berubah saat edit manual — contractDays ikut deret baru
   // bila tidak lagi cocok dengan acuan. Deret yang sama panjang dengan kontrak
   // YANG BERLAKU (adendum waktu, DECISIONS 775) memakai masa kontrak itu.
@@ -77,50 +74,111 @@ export async function updateBaselinePoints(baselineId: string, points: number[],
         ? kontrak.contractDays
         : points.length * 7;
 
-  /*
-   * JADWAL ACUAN IKUT RAB AKTIF (DECISIONS 795). Jadwal per pekerjaan baseline
-   * acuan disalin lalu digeser ke kurva baru (159). Bila RAB aktif sudah
-   * berubah sejak jadwal itu disusun – revisi lain (adendum/CCO), atau isinya
-   * tidak cocok lagi (koreksi di tempat: ada pekerjaan berbobot yang hilang/
-   * bernilai 0, atau pekerjaan bernilai tanpa jadwal) – barisnya disusun ulang
-   * dulu dari RAB aktif: bobot = porsi RAB, bentuk waktu pekerjaan lama tetap,
-   * pekerjaan baru berjendela otomatis. Jadwal yang masih cocok dipakai apa
-   * adanya (impor "apa adanya" 203 tidak tersentuh).
-   */
+  const { acuan, jadwalIkutRab, rabRevisionId } = await jadwalAcuanBaseline(baselineId, ref);
+  const baseline = await simpanBaselineBaru(ref, points, acuan, {
+    source: "manual",
+    rabRevisionId,
+    contractDays,
+    note: `Edit manual dari baseline #${ref.baselineNo}`,
+    userId,
+  });
+  await audit(userId, "baseline.update_points", "baseline", baseline.id, {
+    locationId: ref.locationId,
+    fromBaselineId: baselineId,
+    baselineNo: baseline.baselineNo,
+    weeks: points.length,
+    jadwalIkutRab,
+  });
+  return Object.assign(baseline, { jadwalIkutRab });
+}
+
+type AcuanBaseline = {
+  locationId: string;
+  contractDays: number;
+  rabRevisionId: string | null;
+  baselineNo: number;
+  profil: Prisma.BaselineGetPayload<{ select: { profil: true } }>["profil"];
+  source: Prisma.BaselineGetPayload<{ select: { source: true } }>["source"];
+};
+type BarisJadwal = { lineageKey: string; name: string; weightPct: number; weekly: number[] };
+
+async function bacaAcuanBaseline(baselineId: string): Promise<AcuanBaseline> {
+  return db.baseline.findUniqueOrThrow({
+    where: { id: baselineId },
+    select: { locationId: true, contractDays: true, rabRevisionId: true, baselineNo: true, profil: true, source: true },
+  });
+}
+
+/**
+ * JADWAL ACUAN IKUT RAB AKTIF (DECISIONS 795). Jadwal per pekerjaan baseline
+ * acuan disalin lalu digeser ke kurva baru (159). Bila RAB aktif sudah
+ * berubah sejak jadwal itu disusun – revisi lain (adendum/CCO), atau isinya
+ * tidak cocok lagi (koreksi di tempat: ada pekerjaan berbobot yang hilang/
+ * bernilai 0, atau pekerjaan bernilai tanpa jadwal) – barisnya disusun ulang
+ * dulu dari RAB aktif: bobot = porsi RAB, bentuk waktu pekerjaan lama tetap,
+ * pekerjaan baru berjendela otomatis. Jadwal yang masih cocok dipakai apa
+ * adanya (impor "apa adanya" 203 tidak tersentuh).
+ *
+ * Satu tempat untuk "Simpan kurva manual" dan "Samakan kurva-S semua lokasi"
+ * (797), supaya keduanya tidak pernah berbeda pendapat soal kapan jadwal
+ * dianggap tidak sesuai RAB.
+ */
+async function jadwalAcuanBaseline(
+  baselineId: string,
+  ref: AcuanBaseline,
+): Promise<{
+  acuan: BarisJadwal[];
+  lama: BarisJadwal[];
+  jadwalIkutRab: { keluar: string[]; masuk: string[] } | null;
+  rabRevisionId: string | null;
+}> {
   const refSchedule = await db.baselineScheduleItem.findMany({
     where: { baselineId },
     select: { lineageKey: true, name: true, weightPct: true, weekly: true },
   });
-  let acuan = refSchedule.map((it) => ({
+  const lama = refSchedule.map((it) => ({
     lineageKey: it.lineageKey,
     name: it.name,
     weightPct: Number(it.weightPct),
     weekly: asWeekly(it.weekly),
   }));
-  let jadwalIkutRab: { keluar: string[]; masuk: string[] } | null = null;
-  const rab = acuan.length > 0 ? await activeCategoriesWithWeights(ref.locationId) : null;
-  const gridLama = Math.max(0, ...acuan.map((r) => r.weekly.length));
+  const rab = lama.length > 0 ? await activeCategoriesWithWeights(ref.locationId) : null;
+  const gridLama = Math.max(0, ...lama.map((r) => r.weekly.length));
   if (rab && gridLama > 0) {
     const tidakCocok = cocokkanKurvaDenganRab(
-      acuan.map((r) => ({ lineageKey: r.lineageKey, code: "", name: r.name, weekly: r.weekly })),
+      lama.map((r) => ({ lineageKey: r.lineageKey, code: "", name: r.name, weekly: r.weekly })),
       rab.categories.map((c) => ({ lineageKey: c.lineageKey, code: "", name: c.name, amount: c.amount })),
     ).takSesuai;
     if (rab.revisionId !== ref.rabRevisionId || tidakCocok) {
       const kontrakKini = await totalWeeksFor(ref.locationId);
       const j = jadwalAcuanIkutRab(
-        acuan,
+        lama,
         rab.categories,
         gridLama,
         kontrakKini.totalWeeks === gridLama ? kontrakKini.weekEndFracs : null,
       );
       if (j.rows.length > 0) {
-        acuan = j.rows;
-        jadwalIkutRab = { keluar: j.keluar, masuk: j.masuk };
+        return { acuan: j.rows, lama, jadwalIkutRab: { keluar: j.keluar, masuk: j.masuk }, rabRevisionId: rab.revisionId };
       }
     }
   }
+  return { acuan: lama, lama, jadwalIkutRab: null, rabRevisionId: ref.rabRevisionId };
+}
 
-  const baseline = await db.$transaction(async (tx) => {
+/** Baseline BARU dari deret `points` + jadwal per pekerjaan `acuan`; yang aktif di-supersede. */
+async function simpanBaselineBaru(
+  ref: AcuanBaseline,
+  points: number[],
+  acuan: BarisJadwal[],
+  opsi: {
+    source: AcuanBaseline["source"];
+    rabRevisionId: string | null;
+    contractDays: number;
+    note: string;
+    userId: string;
+  },
+) {
+  return db.$transaction(async (tx) => {
     await tx.baseline.updateMany({
       where: { locationId: ref.locationId, status: "aktif" },
       data: { status: "digantikan", supersededAt: new Date() },
@@ -133,7 +191,7 @@ export async function updateBaselinePoints(baselineId: string, points: number[],
       data: {
         locationId: ref.locationId,
         baselineNo: (last._max.baselineNo ?? 0) + 1,
-        source: "manual",
+        source: opsi.source,
         /*
          * PROFIL DIWARISI, tidak jatuh ke bawaan kolom.
          *
@@ -146,10 +204,10 @@ export async function updateBaselinePoints(baselineId: string, points: number[],
          */
         profil: ref.profil,
         status: "aktif",
-        rabRevisionId: jadwalIkutRab && rab ? rab.revisionId : ref.rabRevisionId,
-        contractDays,
-        note: `Edit manual dari baseline #${ref.baselineNo}`,
-        createdById: userId,
+        rabRevisionId: opsi.rabRevisionId,
+        contractDays: opsi.contractDays,
+        note: opsi.note,
+        createdById: opsi.userId,
       },
     });
     await tx.baselinePoint.createMany({
@@ -183,14 +241,81 @@ export async function updateBaselinePoints(baselineId: string, points: number[],
     }
     return created;
   });
-  await audit(userId, "baseline.update_points", "baseline", baseline.id, {
-    locationId: ref.locationId,
-    fromBaselineId: baselineId,
-    baselineNo: baseline.baselineNo,
-    weeks: points.length,
-    jadwalIkutRab,
+}
+
+/** Hasil "Samakan kurva-S dengan RAB aktif" untuk satu lokasi (DECISIONS 797). */
+export type HasilSamakanKurva =
+  | { status: "disamakan"; baselineNo: number; keluar: string[]; masuk: string[] }
+  | { status: "sesuai" }
+  | { status: "tanpa_kurva" }
+  | { status: "tanpa_jadwal" }
+  | { status: "gagal"; alasan: string };
+
+/**
+ * SAMAKAN KURVA-S SATU LOKASI DENGAN RAB AKTIF (DECISIONS 797).
+ *
+ * Permintaan user 2026-11-27: *"aku butuh fitur hitung ulang kurva s, langsung
+ * seluruh lokasi sekali klik … aku khawatir ada yang masih bocor karena belum
+ * dikalkulasi ulang, jika lokasi tersebut sudah sesuai ya dia tidak perlu
+ * melakukan apa pun"*.
+ *
+ * Yang "bocor" adalah jadwal per pekerjaan yang masih menunjuk RAB lama:
+ * Tambatan berbobot padahal dinolkan CCO, Genset tanpa jadwal. Perbaikannya
+ * persis langkah "Simpan kurva manual" (795) dengan deret kurva YANG SAMA:
+ * - titik kurva-S rencana tidak berubah satu angka pun – rencana s.d. tanggal
+ *   dan deviasi tetap;
+ * - jadwal per pekerjaan disusun ulang dari RAB aktif lalu dipetakan ke kurva
+ *   itu; baseline lama tetap tersimpan sebagai "digantikan".
+ * Lokasi yang jadwalnya sudah cocok tidak disentuh – tidak ada baseline baru.
+ * Sumber baseline (auto/adendum/manual) dan profilnya diwarisi.
+ */
+export async function samakanKurvaDenganRab(locationId: string, userId: string): Promise<HasilSamakanKurva> {
+  const aktif = await getActiveBaseline(locationId);
+  if (!aktif || aktif.points.length === 0) return { status: "tanpa_kurva" };
+  const ref = await bacaAcuanBaseline(aktif.id);
+  const { acuan, lama, jadwalIkutRab, rabRevisionId } = await jadwalAcuanBaseline(aktif.id, ref);
+  if (lama.length === 0) return { status: "tanpa_jadwal" };
+  if (!jadwalIkutRab || samaJadwal(lama, acuan)) return { status: "sesuai" };
+
+  const points = aktif.points.map((p) => Number(p.plannedPct));
+  const invalid = validateBaselinePoints(points);
+  if (invalid) return { status: "gagal", alasan: invalid };
+  const baseline = await simpanBaselineBaru(ref, points, acuan, {
+    source: ref.source,
+    rabRevisionId,
+    contractDays: ref.contractDays,
+    note: `Disamakan dengan RAB aktif dari baseline #${ref.baselineNo}`,
+    userId,
   });
-  return Object.assign(baseline, { jadwalIkutRab });
+  await audit(userId, "baseline.samakan_rab", "baseline", baseline.id, {
+    locationId,
+    fromBaselineId: aktif.id,
+    baselineNo: baseline.baselineNo,
+    keluar: jadwalIkutRab.keluar,
+    masuk: jadwalIkutRab.masuk,
+  });
+  return { status: "disamakan", baselineNo: baseline.baselineNo, ...jadwalIkutRab };
+}
+
+/**
+ * Jadwal hasil susun ulang yang sama dengan yang tersimpan = tidak ada yang
+ * perlu disamakan (mis. revisi berganti tapi daftar dan porsinya identik).
+ * Toleransinya di bawah apa pun yang terlihat: bobot 0,001 poin persen, kolom
+ * mingguan 0,0001 poin persen (penskalaan ulang ke porsi RAB menggeser angka
+ * tersimpan di digit ke-7 tanpa mengubah apa-apa).
+ */
+export function samaJadwal(lama: readonly BarisJadwal[], baru: readonly BarisJadwal[]): boolean {
+  if (lama.length !== baru.length) return false;
+  const peta = new Map(lama.map((r) => [r.lineageKey, r]));
+  return baru.every((b) => {
+    const l = peta.get(b.lineageKey);
+    return (
+      !!l &&
+      Math.abs(l.weightPct - b.weightPct) < 0.001 &&
+      l.weekly.length === b.weekly.length &&
+      l.weekly.every((v, i) => Math.abs(v - b.weekly[i]) < 1e-4)
+    );
+  });
 }
 
 /* ── Konversi baseline ke GRID MINGGU baru (DECISIONS 427d) ──────────────────

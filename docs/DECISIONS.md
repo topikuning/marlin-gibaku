@@ -94,6 +94,8 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 798 | 2026-11-27 | Item bervolume 0 di RAB aktif tidak muncul di mana pun kecuali di perbandingan (ketetapan user); pohon RAB tidak lagi punya tombol menampilkannya; barisnya tetap tersimpan untuk riwayat laporan dan Pasangkan realisasi |
+| 797 | 2026-11-27 | Tombol "Samakan kurva-S semua lokasi dengan RAB aktif" (halaman Progress): per lokasi = simpan kurva manual 795 dengan titik kurva yang sama – jadwal per pekerjaan disusun ulang dari RAB aktif, rencana & deviasi tetap; lokasi yang sudah sesuai tidak disentuh; hasil per lokasi disebut |
 | 796 | 2026-11-27 | Baris judul tabel RAB = label VOL dan SAT di baris yang sama (`barisJudulTabel`); "SATKER" di sampul tidak lagi menggeser kolom nomor ke kolom A (MC0 MINANGA TIGA: 10 dari 13 kategori tertelan). Bacaan yang ≥10 pekerjaan dan ≥5% bernama nomor ditolak dengan menyebut barisnya |
 | 795 | 2026-11-26 | "Simpan kurva manual" (penyesuaian halus %-mingguan) menyusun ulang jadwal per pekerjaan dari RAB aktif bila RAB berubah sejak jadwal disusun (revisi lain, atau isinya tidak cocok sesudah koreksi): baris = kategori RAB bernilai, bobot = porsi RAB, bentuk waktu lama dipertahankan, pekerjaan baru berjendela otomatis, yang hilang keluar – disebut di pesan; jadwal yang masih cocok (impor apa adanya) tetap |
 | 794 | 2026-11-26 | Lembar kurva-S tidak mencetak baris berbobot 0 untuk pekerjaan yang tidak ada/bernilai 0 di RAB aktif (kategori bayangan "judul tidak ada di file"); ketidakcocokan jadwal tersimpan vs RAB aktif (mis. Tambatan 29,83% padahal 0 di RAB CCO, Genset tanpa jadwal) disebut di layar laporan dengan tombol ke Perbarui Kurva-S; Time Schedule di berkas sumber RAB aktif bisa diperiksa & diterapkan tanpa unggah ulang |
