@@ -23,6 +23,7 @@ import { rebucketWeeklyToGrid,
   type WeekSegment,
 } from "@/lib/scurve/generate";
 import { susunJadwalApaAdanya, type HasilApaAdanya } from "@/lib/scurve/jadwal-verbatim";
+import { cocokkanKurvaDenganRab, jadwalAcuanIkutRab } from "@/lib/scurve/kurva-vs-rab";
 
 /**
  * Layer baseline (kurva-S rencana ber-versi) + deret rencana vs realisasi.
@@ -76,6 +77,49 @@ export async function updateBaselinePoints(baselineId: string, points: number[],
         ? kontrak.contractDays
         : points.length * 7;
 
+  /*
+   * JADWAL ACUAN IKUT RAB AKTIF (DECISIONS 795). Jadwal per pekerjaan baseline
+   * acuan disalin lalu digeser ke kurva baru (159). Bila RAB aktif sudah
+   * berubah sejak jadwal itu disusun – revisi lain (adendum/CCO), atau isinya
+   * tidak cocok lagi (koreksi di tempat: ada pekerjaan berbobot yang hilang/
+   * bernilai 0, atau pekerjaan bernilai tanpa jadwal) – barisnya disusun ulang
+   * dulu dari RAB aktif: bobot = porsi RAB, bentuk waktu pekerjaan lama tetap,
+   * pekerjaan baru berjendela otomatis. Jadwal yang masih cocok dipakai apa
+   * adanya (impor "apa adanya" 203 tidak tersentuh).
+   */
+  const refSchedule = await db.baselineScheduleItem.findMany({
+    where: { baselineId },
+    select: { lineageKey: true, name: true, weightPct: true, weekly: true },
+  });
+  let acuan = refSchedule.map((it) => ({
+    lineageKey: it.lineageKey,
+    name: it.name,
+    weightPct: Number(it.weightPct),
+    weekly: asWeekly(it.weekly),
+  }));
+  let jadwalIkutRab: { keluar: string[]; masuk: string[] } | null = null;
+  const rab = acuan.length > 0 ? await activeCategoriesWithWeights(ref.locationId) : null;
+  const gridLama = Math.max(0, ...acuan.map((r) => r.weekly.length));
+  if (rab && gridLama > 0) {
+    const tidakCocok = cocokkanKurvaDenganRab(
+      acuan.map((r) => ({ lineageKey: r.lineageKey, code: "", name: r.name, weekly: r.weekly })),
+      rab.categories.map((c) => ({ lineageKey: c.lineageKey, code: "", name: c.name, amount: c.amount })),
+    ).takSesuai;
+    if (rab.revisionId !== ref.rabRevisionId || tidakCocok) {
+      const kontrakKini = await totalWeeksFor(ref.locationId);
+      const j = jadwalAcuanIkutRab(
+        acuan,
+        rab.categories,
+        gridLama,
+        kontrakKini.totalWeeks === gridLama ? kontrakKini.weekEndFracs : null,
+      );
+      if (j.rows.length > 0) {
+        acuan = j.rows;
+        jadwalIkutRab = { keluar: j.keluar, masuk: j.masuk };
+      }
+    }
+  }
+
   const baseline = await db.$transaction(async (tx) => {
     await tx.baseline.updateMany({
       where: { locationId: ref.locationId, status: "aktif" },
@@ -102,7 +146,7 @@ export async function updateBaselinePoints(baselineId: string, points: number[],
          */
         profil: ref.profil,
         status: "aktif",
-        rabRevisionId: ref.rabRevisionId,
+        rabRevisionId: jadwalIkutRab && rab ? rab.revisionId : ref.rabRevisionId,
         contractDays,
         note: `Edit manual dari baseline #${ref.baselineNo}`,
         createdById: userId,
@@ -122,21 +166,17 @@ export async function updateBaselinePoints(baselineId: string, points: number[],
     // PDF/dashboard memakai kurva baru. `rescheduleToCurve` memetakan waktu:
     // kolom mengikuti increment kurva baru, bobot tiap baris tetap = porsi RAB.
     // Jumlah minggu boleh berubah — jadwal ikut diregangkan (dulu malah dibuang).
-    const refSchedule = await tx.baselineScheduleItem.findMany({
-      where: { baselineId },
-      select: { lineageKey: true, name: true, weightPct: true, weekly: true },
-    });
-    if (refSchedule.length > 0) {
+    if (acuan.length > 0) {
       const setel = rescheduleToCurve(
-        refSchedule.map((it) => asWeekly(it.weekly)),
+        acuan.map((it) => it.weekly),
         points,
       );
       await tx.baselineScheduleItem.createMany({
-        data: refSchedule.map((it, i) => ({
+        data: acuan.map((it, i) => ({
           baselineId: created.id,
           lineageKey: it.lineageKey,
           name: it.name,
-          weightPct: it.weightPct,
+          weightPct: Math.round(it.weightPct * 1000) / 1000,
           weekly: setel[i].map((v) => Math.round(v * 1e6) / 1e6) as Prisma.InputJsonValue,
         })),
       });
@@ -148,8 +188,9 @@ export async function updateBaselinePoints(baselineId: string, points: number[],
     fromBaselineId: baselineId,
     baselineNo: baseline.baselineNo,
     weeks: points.length,
+    jadwalIkutRab,
   });
-  return baseline;
+  return Object.assign(baseline, { jadwalIkutRab });
 }
 
 /* ── Konversi baseline ke GRID MINGGU baru (DECISIONS 427d) ──────────────────

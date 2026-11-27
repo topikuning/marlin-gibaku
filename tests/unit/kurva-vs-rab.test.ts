@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cocokkanKurvaDenganRab, type BarisKurva, type KategoriRab } from "@/lib/scurve/kurva-vs-rab";
+import { cocokkanKurvaDenganRab, jadwalAcuanIkutRab, type BarisKurva, type KategoriRab } from "@/lib/scurve/kurva-vs-rab";
 
 /*
  * BARIS KURVA-S vs RAB AKTIF (DECISIONS 794). Kasus BUYAT TENGAH, Kurva S
@@ -50,5 +50,50 @@ describe("cocokkanKurvaDenganRab", () => {
     const r = cocokkanKurvaDenganRab(cco, RAB);
     expect(r.tampil.map((x) => x.lineageKey)).toEqual(["I", "IV", "XII#2"]);
     expect(r.takSesuai).toBeNull();
+  });
+});
+
+/*
+ * "Simpan kurva manual" sesudah CCO (DECISIONS 795). Keluhan user 2026-11-26:
+ * penyesuaian halus %-mingguan tidak mengubah kategori/item ke RAB baru – baru
+ * berubah sesudah "Hitung ulang" lalu disimpan manual lagi.
+ */
+describe("jadwalAcuanIkutRab", () => {
+  const LAMA = [
+    { lineageKey: "I", name: "PEKERJAAN PERSIAPAN", weekly: [5, 5, 0, 0] },
+    { lineageKey: "III", name: "PEKERJAAN TAMBATAN PERAHU", weekly: [0, 15, 15, 0] },
+    { lineageKey: "IV", name: "PEKERJAAN DINDING PENAHAN TANAH", weekly: [0, 10, 20, 30] },
+    { lineageKey: "III#2", name: "PEKERJAAN (kategori III – judul tidak ada di file)", weekly: [0, 0, 0, 0] },
+  ];
+  const RAB_CCO = [
+    { lineageKey: "I", name: "PEKERJAAN PERSIAPAN", amount: 20n },
+    { lineageKey: "IV", name: "PEKERJAAN DINDING PENAHAN TANAH", amount: 60n },
+    { lineageKey: "XII#2", name: "PEKERJAAN BANGUNAN GENSET", amount: 20n },
+  ];
+
+  it("baris = kategori RAB aktif bernilai, bobot = porsi RAB; yang hilang keluar, yang baru masuk", () => {
+    const r = jadwalAcuanIkutRab(LAMA, RAB_CCO, 4);
+    expect(r.rows.map((x) => [x.lineageKey, Math.round(x.weekly.reduce((s, v) => s + v, 0) * 1000) / 1000])).toEqual([
+      ["I", 20],
+      ["IV", 60],
+      ["XII#2", 20],
+    ]);
+    expect(r.keluar).toEqual(["PEKERJAAN TAMBATAN PERAHU"]);
+    expect(r.masuk).toEqual(["PEKERJAAN BANGUNAN GENSET"]);
+  });
+
+  it("pekerjaan lama tetap memakai BENTUK waktunya (diskalakan ke bobot RAB)", () => {
+    const r = jadwalAcuanIkutRab(LAMA, RAB_CCO, 4);
+    const iv = r.rows.find((x) => x.lineageKey === "IV")!.weekly;
+    expect(iv.map((v) => Math.round(v * 1000) / 1000)).toEqual([0, 10, 20, 30]);
+    const i = r.rows.find((x) => x.lineageKey === "I")!.weekly;
+    expect(i.map((v) => Math.round(v * 1000) / 1000)).toEqual([10, 10, 0, 0]);
+  });
+
+  it("pekerjaan baru mendapat jendela otomatis yang berbobot", () => {
+    const r = jadwalAcuanIkutRab(LAMA, RAB_CCO, 4);
+    const g = r.rows.find((x) => x.lineageKey === "XII#2")!.weekly;
+    expect(g).toHaveLength(4);
+    expect(g.some((v) => v > 0)).toBe(true);
   });
 });
