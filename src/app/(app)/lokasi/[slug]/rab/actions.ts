@@ -51,6 +51,7 @@ import { ringkasApaAdanya } from "@/lib/scurve/jadwal-verbatim";
 import { suggestWeeklyPlan, type WeeklySuggestionResult } from "@/lib/plan/suggest";
 import { akhirKontrakBerlaku, weekDateRange } from "@/lib/progress-calc";
 import { HARI_ADENDUM } from "@/lib/kontrak-berlaku";
+import { itemDinolkan } from "@/lib/rab/item-nol";
 import { ambilBerkas } from "@/lib/penyimpanan/berkas";
 
 export type RabActionState = { error?: string; success?: string } | undefined;
@@ -780,9 +781,12 @@ export async function addWeeklyPlanItem(_prev: RabActionState, formData: FormDat
         kind: "item",
         revision: { locationId: d.locationId, status: "aktif" },
       },
-      select: { id: true, name: true, code: true },
+      select: { id: true, name: true, code: true, volume: true, amount: true },
     });
     if (!node) return { error: "Item RAB tidak ditemukan di revisi aktif lokasi ini." };
+    if (itemDinolkan(node)) {
+      return { error: `"${node.name}" sudah dinolkan di RAB aktif, jadi tidak bisa direncanakan.` };
+    }
 
     /*
      * Rentang minggu mengikuti GRID KONTRAK (`weekMode`), bukan aritmetika

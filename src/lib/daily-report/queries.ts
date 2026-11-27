@@ -17,6 +17,7 @@ import {
 import { kategoriDariLineageAtau } from "@/lib/rab/kategori-lineage";
 import { nodeAktifByLineage } from "@/lib/rab/node-aktif";
 import { jalurNodeById } from "@/lib/rab/jalur";
+import { AMBANG_VOLUME_NOL, itemDinolkan } from "@/lib/rab/item-nol";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
 import type {
@@ -112,6 +113,7 @@ export async function getLeafNodeOptions(locationId: string): Promise<LeafNodeOp
         name: true,
         unit: true,
         volume: true,
+        amount: true,
         lineageKey: true,
         sortOrder: true,
         revisionId: true,
@@ -165,7 +167,14 @@ export async function getLeafNodeOptions(locationId: string): Promise<LeafNodeOp
     .filter(
       (n) =>
         n.kind === "item" &&
-        (n.revisionId === revision?.id || !lineageAktif.has(n.lineageKey)),
+        (n.revisionId === revision?.id || !lineageAktif.has(n.lineageKey)) &&
+        /*
+         * Item yang DINOLKAN tidak bisa dipilih (DECISIONS 798): pekerjaan itu
+         * sudah dicabut, jadi tidak muncul di pencarian laporan harian, bot WA,
+         * maupun usulan WA. Kecuali draft adendum menaikkannya lagi – pilihan
+         * itu yang membawa volume ke draft (`sisaDraft`, 742).
+         */
+        (!itemDinolkan(n) || (volumeDraftPer.get(n.lineageKey) ?? 0) > AMBANG_VOLUME_NOL),
     )
     .map((n) => {
       const volume = n.volume != null ? Number(n.volume) : null;

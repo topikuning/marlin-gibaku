@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { itemDinolkan } from "@/lib/rab/item-nol";
 import {
   peringkatPadanan,
   siapkanKandidat,
@@ -108,7 +109,8 @@ export async function itemRabAktif(
       amount: n.amount,
       tanda: tandaItem(n.name, n.unit),
     }))
-    .filter((n) => !adalahJudul(n));
+    // Item yang dinolkan adendum/CCO tidak ikut RAPL maupun padanan AHSP (DECISIONS 798).
+    .filter((n) => !adalahJudul(n) && !itemDinolkan(n));
 }
 
 /**

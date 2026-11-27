@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { buildRabXlsx, type RabExportNode } from "@/lib/export/rab-xlsx";
 import { muatRincianEkspor } from "@/lib/rab/rincian/ekspor";
+import { tanpaSimpulNol } from "@/lib/rab/item-nol";
 
 export const dynamic = "force-dynamic";
 
@@ -78,7 +79,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     ppnPercent: contract ? Number(contract.ppnPercent) : 11,
     revisionNo: active.revisionNo,
     totalValue: active.totalValue,
-    nodes: nodes.map(
+    // Item yang dinolkan adendum/CCO tidak ikut diunduh (DECISIONS 798).
+    nodes: tanpaSimpulNol(nodes).map(
       (n): RabExportNode => ({
         id: n.id,
         parentId: n.parentId,

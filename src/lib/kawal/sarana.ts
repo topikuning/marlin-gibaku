@@ -35,7 +35,8 @@ export async function kelompokMarlinKini(locationId: string): Promise<KelompokMa
   const { akar, item } = itemPerKategori(nodes);
   const hariIni = jakartaDateKey(new Date());
   const grandTotal = Number(rev.totalValue);
-  return akar.map((a) => {
+  // Kategori bernilai 0 (dinolkan CCO, mis. Tambatan) tidak ditawarkan (DECISIONS 798).
+  return akar.filter((a) => Number(a.amount) !== 0).map((a) => {
     const items = (item.get(a.lineageKey) ?? []).map((n) => ({
       lineageKey: n.lineageKey,
       amount: Number(n.amount),

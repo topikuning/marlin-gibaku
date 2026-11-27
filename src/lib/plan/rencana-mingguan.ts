@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { kodeTampil, penyusunJudul, type JudulBaris } from "@/lib/rab/penomoran";
+import { itemDinolkan } from "@/lib/rab/item-nol";
 import { bobotPct, weekDateRange } from "@/lib/progress-calc";
 import { cumulativeVolumeByLineage, getLocationProgress, planPctAtWeek } from "@/lib/progress";
 import {
@@ -176,6 +177,7 @@ export async function getRencanaMingguan(
       unit: true,
       volume: true,
       unitPrice: true,
+      amount: true,
       lineageKey: true,
     },
   });
@@ -187,7 +189,9 @@ export async function getRencanaMingguan(
   };
   const daunById = new Map<string, Daun>();
   nodes.forEach((n, urutan) => {
-    if (n.kind !== "item") return;
+    // Item yang dinolkan (koreksi di tempat sesudah rencana disusun) tidak
+    // dicetak, sama seperti komitmen dari revisi lain (DECISIONS 798).
+    if (n.kind !== "item" || itemDinolkan(n)) return;
     const kat = kategoriOf(n);
     daunById.set(n.id, {
       id: n.id,

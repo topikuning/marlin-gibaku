@@ -14,6 +14,7 @@ import { analisaRevisi, sumberBackupRevisi } from "@/lib/rab/rincian/sumber-back
 import type { SumberBackup } from "@/lib/rab/rincian/warisan";
 import { requireLocationPage } from "../../get-location";
 import { FormIsian, TabelIsian, type BarisIsianView } from "./isian-backup";
+import { itemDinolkan } from "@/lib/rab/item-nol";
 
 export const metadata: Metadata = { title: "Backup volume & analisa" };
 export const dynamic = "force-dynamic";
@@ -138,7 +139,7 @@ export default async function BackupAnalisaPage({
     db.rabNode.findMany({
       where: { revisionId: rev.id, kind: "item" },
       orderBy: { sortOrder: "asc" },
-      select: { lineageKey: true, code: true, name: true, volume: true, unit: true },
+      select: { lineageKey: true, code: true, name: true, volume: true, unit: true, amount: true },
     }),
     rev.rincian
       ? db.rabAnalisa.findMany({
@@ -159,7 +160,8 @@ export default async function BackupAnalisaPage({
       ? db.rabHargaDasar.findMany({ where: { revisionId: rev.id }, orderBy: [{ sheet: "asc" }, { baris: "asc" }] })
       : Promise.resolve([]),
   ]);
-  const tanpa = nodes.filter((n) => peta.get(n.lineageKey)?.jenis === "belum");
+  // Item yang dinolkan tidak butuh backup volume dan tidak ditampilkan (DECISIONS 798).
+  const tanpa = nodes.filter((n) => peta.get(n.lineageKey)?.jenis === "belum" && !itemDinolkan(n));
   const r = rev.rincian;
 
   return (

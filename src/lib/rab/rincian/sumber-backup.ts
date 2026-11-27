@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { itemDinolkan } from "@/lib/rab/item-nol";
 import {
   ringkasBackup,
   selesaikanAnalisa,
@@ -42,7 +43,7 @@ export async function sumberBackupRevisi(revisionId: string): Promise<{
   const [nodes, berkas, isian] = await Promise.all([
     db.rabNode.findMany({
       where: { revisionId: { in: ids }, kind: "item" },
-      select: { revisionId: true, lineageKey: true, volume: true },
+      select: { revisionId: true, lineageKey: true, volume: true, amount: true },
     }),
     db.rabBackupVolume.findMany({
       where: { revisionId: { in: ids } },
@@ -70,7 +71,9 @@ export async function sumberBackupRevisi(revisionId: string): Promise<{
     });
   }
   const peta = selesaikanBackup([...perRevisi.values()]).get(target.id) ?? new Map();
-  return { peta, ringkas: ringkasBackup(peta) };
+  // Item yang dinolkan tidak butuh backup dan tidak ikut dihitung (DECISIONS 798).
+  const nol = new Set(nodes.filter((n) => n.revisionId === target.id && itemDinolkan(n)).map((n) => n.lineageKey));
+  return { peta, ringkas: ringkasBackup(new Map([...peta].filter(([k]) => !nol.has(k)))) };
 }
 
 /** Analisa tiap item revisi ini – miliknya sendiri, atau diwarisi bila harga satuannya sama. */

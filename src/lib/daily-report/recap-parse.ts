@@ -28,6 +28,8 @@ export type RecapLeaf = {
   unitPrice: number;
   lineageKey: string;
   doneCumulative: number;
+  /** Item dinolkan adendum/CCO – tidak dicetak di templat (DECISIONS 798). */
+  dinolkan?: boolean;
 };
 
 export type RecapRowStatus =

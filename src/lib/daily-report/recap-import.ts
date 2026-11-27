@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { itemDinolkan } from "@/lib/rab/item-nol";
 import { audit } from "@/lib/audit";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
 import { jakartaDateKey } from "@/lib/format";
@@ -47,7 +48,7 @@ export async function getRecapLeaves(locationId: string): Promise<RecapLeaf[]> {
   const [nodes, cumulative] = await Promise.all([
     db.rabNode.findMany({
       where: { revisionId: revision.id, kind: "item" },
-      select: { id: true, code: true, name: true, unit: true, volume: true, unitPrice: true, lineageKey: true },
+      select: { id: true, code: true, name: true, unit: true, volume: true, unitPrice: true, amount: true, lineageKey: true },
       // Urutan yang DIJAMIN: pratinjau dan commit adalah dua permintaan terpisah,
       // dan pencocokan yang bergantung pada urutan baca membuat keduanya bisa
       // memilih item yang berbeda untuk baris yang sama. Audit 2026-09-15 (C-1).
@@ -64,6 +65,7 @@ export async function getRecapLeaves(locationId: string): Promise<RecapLeaf[]> {
     unitPrice: n.unitPrice != null ? Number(n.unitPrice) : 0,
     lineageKey: n.lineageKey,
     doneCumulative: cumulative.get(n.lineageKey) ?? 0,
+    dinolkan: itemDinolkan(n),
   }));
 }
 

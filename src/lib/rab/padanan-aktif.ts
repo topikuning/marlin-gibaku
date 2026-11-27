@@ -1321,18 +1321,21 @@ export async function dataPadananAktif(locationId: string): Promise<{
     ? new Set((await db.rabNode.findMany({ where: { revisionId: draft.id }, select: { lineageKey: true } })).map((n) => n.lineageKey))
     : null;
 
-  // Tujuan: SEMUA item pekerjaan RAB aktif tanpa rincian (781).
+  // Tujuan: SEMUA item pekerjaan RAB aktif tanpa rincian (781) – kecuali yang
+  // dinolkan: pekerjaan yang dicabut tidak bisa jadi tujuan dan tidak tampil di
+  // daftar pilihan (DECISIONS 798). Sebagai item LAMA (`dinolkan`) ia tetap ada.
   const calonNode = nodeAktif.filter((n) => (n.kind === "item" || n.kind === "grup") && !beranak.has(n.id));
-  const terlaporRows = calonNode.length
+  const tujuanNode = calonNode.filter((n) => !volumeNol(n.volume == null ? null : Number(n.volume)));
+  const terlaporRows = tujuanNode.length
     ? await db.dailyReportItem.groupBy({
         by: ["lineageKey"],
-        where: { lineageKey: { in: calonNode.map((n) => n.lineageKey) }, basis: "aktif", report: { locationId } },
+        where: { lineageKey: { in: tujuanNode.map((n) => n.lineageKey) }, basis: "aktif", report: { locationId } },
         _sum: { volumeDone: true },
       })
     : [];
   const terlapor = new Map(terlaporRows.map((r) => [r.lineageKey, Number(r._sum.volumeDone ?? 0)]));
-  const jalurCalon = await jalurNodeById(calonNode.map((n) => n.id));
-  const calon: CalonAktif[] = calonNode.map((n) => ({
+  const jalurCalon = await jalurNodeById(tujuanNode.map((n) => n.id));
+  const calon: CalonAktif[] = tujuanNode.map((n) => ({
     lineageKey: n.lineageKey,
     code: n.code,
     name: n.name,
@@ -1345,7 +1348,7 @@ export async function dataPadananAktif(locationId: string): Promise<{
   }));
   // Saran: pencocok nama yang sama dengan padanan draft (738). Item yang sisanya
   // 0 tidak disarankan – tetap bisa dipilih.
-  const kandidat: KandidatDraft[] = calonNode
+  const kandidat: KandidatDraft[] = tujuanNode
     .map((n, i) => ({ n, c: calon[i]! }))
     .filter(({ c }) => c.sisa > 0.0005)
     .map(({ n, c }) => ({

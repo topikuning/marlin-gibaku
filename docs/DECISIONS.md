@@ -94,7 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
-| 798 | 2026-11-27 | Item bervolume 0 di RAB aktif tidak muncul di mana pun kecuali di perbandingan (ketetapan user); pohon RAB tidak lagi punya tombol menampilkannya; barisnya tetap tersimpan untuk riwayat laporan dan Pasangkan realisasi |
+| 798 | 2026-11-27 | Item bervolume 0 di RAB aktif tidak muncul di mana pun kecuali di perbandingan (ketetapan user; satu definisi `item-nol.ts`): pohon RAB tanpa tombol tampilkan, pemilih laporan harian/WA/rencana/impor pelaksana/Pasangkan, Excel RAB & Time Schedule rinci & templat rekap, RAPL, backup, kategori bernilai 0 di laporan lokasi/paparan/sarpras/Kawal; barisnya tetap tersimpan |
 | 797 | 2026-11-27 | Tombol "Samakan kurva-S semua lokasi dengan RAB aktif" (halaman Progress): per lokasi = simpan kurva manual 795 dengan titik kurva yang sama – jadwal per pekerjaan disusun ulang dari RAB aktif, rencana & deviasi tetap; lokasi yang sudah sesuai tidak disentuh; hasil per lokasi disebut |
 | 796 | 2026-11-27 | Baris judul tabel RAB = label VOL dan SAT di baris yang sama (`barisJudulTabel`); "SATKER" di sampul tidak lagi menggeser kolom nomor ke kolom A (MC0 MINANGA TIGA: 10 dari 13 kategori tertelan). Bacaan yang ≥10 pekerjaan dan ≥5% bernama nomor ditolak dengan menyebut barisnya |
 | 795 | 2026-11-26 | "Simpan kurva manual" (penyesuaian halus %-mingguan) menyusun ulang jadwal per pekerjaan dari RAB aktif bila RAB berubah sejak jadwal disusun (revisi lain, atau isinya tidak cocok sesudah koreksi): baris = kategori RAB bernilai, bobot = porsi RAB, bentuk waktu lama dipertahankan, pekerjaan baru berjendela otomatis, yang hilang keluar – disebut di pesan; jadwal yang masih cocok (impor apa adanya) tetap |
