@@ -28,18 +28,19 @@ const FILTERS: { key: FilterPeta; label: string }[] = [
  * kelompok, supaya tidak ada lagi label "lapor atau belum".
  */
 const LEGENDA_WARNA: { tone: MarkerTone; label: string; dot: string }[] = [
-  { tone: "success", label: "Sesuai jadwal", dot: "size-3 bg-success" },
-  { tone: "warning", label: "Terlambat", dot: "size-3 bg-warning" },
-  { tone: "danger", label: "Kritis (deviasi di bawah −10%)", dot: "size-3 bg-danger" },
-  { tone: "neutral", label: "Belum ada angka progres", dot: "size-3 bg-ink-faint" },
+  { tone: "success", label: "Sesuai jadwal", dot: "size-2.5 bg-success" },
+  { tone: "warning", label: "Terlambat", dot: "size-2.5 bg-warning" },
+  { tone: "danger", label: "Kritis (deviasi < −10%)", dot: "size-2.5 bg-danger" },
+  { tone: "neutral", label: "Belum ada angka", dot: "size-2.5 bg-ink-faint" },
   { tone: "idle", label: "Belum mulai", dot: "size-2 bg-ink-faint/50" },
 ];
 
-// Cincin digambar KOSONG di legenda: isi abu di sini akan terbaca "belum ada
-// angka progres" dari kelompok warna.
+// Sama dengan penanda di peta (799): sudah lapor = lingkaran cahaya lembut,
+// belum lapor = cincin abu tipis berjarak. Titiknya abu supaya tidak terbaca
+// sebagai salah satu warna kondisi.
 const LEGENDA_CINCIN: { key: string; label: string; dot: string }[] = [
-  { key: "sudah", label: "Sudah lapor", dot: "border border-ink-faint" },
-  { key: "belum", label: "Belum lapor", dot: "border-[3px] border-ink" },
+  { key: "sudah", label: "Sudah lapor", dot: "size-2.5 bg-ink-faint ring-4 ring-ink-faint/30" },
+  { key: "belum", label: "Belum lapor", dot: "size-2.5 bg-ink-faint ring-[1.5px] ring-ink-muted/75 ring-offset-2 ring-offset-surface" },
 ];
 
 export function DashboardMap({
@@ -100,56 +101,47 @@ export function DashboardMap({
             if (slug) router.push(`/lokasi/${slug}`);
           }}
         />
-        {/*
-          LEGENDA MENUMPANG PETA HANYA DI LAYAR LEBAR.
-          Di HP kotak ini menutup separuh peta — teguran user 2026-09-06:
-          *"peta di dashboard di tampilan mobile jadi seperti tidak berguna
-          karena tertutup legend"*. Benar: lebarnya 15rem di atas peta selebar
-          ±20rem, jadi yang tersisa cuma pinggirannya. Di HP legendanya turun ke
-          bawah peta (lihat di luar kotak ini).
-        */}
-        <div className="pointer-events-none absolute bottom-3 left-3 z-[1000] hidden rounded-md border border-border bg-surface/95 p-2.5 text-[11px] shadow-sm sm:block">
-          <Legenda />
-        </div>
       </div>
 
-      {/* Legenda versi HP: di BAWAH peta, tidak menutupi apa pun. */}
-      <div className="text-[11px] sm:hidden">
-        <Legenda />
-      </div>
+      {/*
+        LEGENDA DI BAWAH PETA, TIDAK PERNAH MENUMPANG – teguran user
+        2026-11-27 (DECISIONS 799): *"keterangan itu menutupi informasi
+        utamanya"*. Kotak legenda di pojok kiri-bawah menutup titik-titik
+        Jawa–Bali, tempat sebagian besar lokasi berada. Sekarang satu baris
+        chip ringkas di luar peta, di semua ukuran layar (di HP sudah begitu
+        sejak 2026-09-06).
+      */}
+      <Legenda />
     </div>
   );
 }
 
 function Legenda() {
   return (
-    <div className="flex flex-wrap gap-x-5 gap-y-2">
-      <div>
-        <p className="mb-1 font-medium text-ink">Warna: kondisi proyek</p>
-        <ul className="space-y-1">
-          {LEGENDA_WARNA.map((l) => (
-            <li key={l.tone} className="flex items-center gap-2">
-              <span className="flex size-3.5 shrink-0 items-center justify-center">
-                <span className={`rounded-full ${l.dot}`} />
-              </span>
-              <span className="text-ink-muted">{l.label}</span>
-            </li>
-          ))}
-        </ul>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-ink-muted">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-0.5 font-medium text-ink">Kondisi</span>
+        {LEGENDA_WARNA.map((l) => (
+          <Chip key={l.tone} dot={l.dot} label={l.label} />
+        ))}
       </div>
-      <div>
-        <p className="mb-1 font-medium text-ink">Cincin: laporan hari ini</p>
-        <ul className="space-y-1">
-          {LEGENDA_CINCIN.map((l) => (
-            <li key={l.key} className="flex items-center gap-2">
-              <span className="flex size-3.5 shrink-0 items-center justify-center">
-                <span className={`size-3.5 rounded-full ${l.dot}`} />
-              </span>
-              <span className="text-ink-muted">{l.label}</span>
-            </li>
-          ))}
-        </ul>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-0.5 font-medium text-ink">Laporan hari ini</span>
+        {LEGENDA_CINCIN.map((l) => (
+          <Chip key={l.key} dot={l.dot} label={l.label} />
+        ))}
       </div>
     </div>
+  );
+}
+
+function Chip({ dot, label }: { dot: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-2 py-0.5">
+      <span className="flex size-3.5 shrink-0 items-center justify-center">
+        <span className={`rounded-full ${dot}`} />
+      </span>
+      {label}
+    </span>
   );
 }

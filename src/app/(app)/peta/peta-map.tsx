@@ -69,6 +69,7 @@ const KELOMPOK_OPSI = (aktif: boolean) => ({
 
 const MAP_TOKENS = [
   "--color-ink",
+  "--color-ink-muted",
   "--color-ink-faint",
   "--color-info",
   "--color-warning",
@@ -87,10 +88,45 @@ const TONE_TOKEN: Record<"success" | "warning" | "danger" | "neutral" | "idle", 
 };
 
 const SUMBER_LOKASI = "lokasi";
+const LAPIS_KELOMPOK_HALO = "lokasi-kelompok-halo";
 const LAPIS_KELOMPOK = "lokasi-kelompok";
 const LAPIS_JUMLAH = "lokasi-jumlah";
+const LAPIS_BAYANG = "lokasi-bayang";
+const LAPIS_HALO = "lokasi-halo";
+const LAPIS_CINCIN = "lokasi-cincin";
 const LAPIS_TITIK = "lokasi-titik";
 const LAPIS_PILIH = "lokasi-terpilih";
+
+/*
+ * BENTUK PENANDA (DECISIONS 799) – teguran user 2026-11-27, membandingkan
+ * dengan peta Kawal: *"tampilan map mu … terlihat sangat kaku dan jadul
+ * penandanya"*. Penanda lama: titik datar 7 px dengan cincin hitam 3 px untuk
+ * "belum lapor" – berat, dan di tampilan nasional jadi deretan bola hitam.
+ *
+ * Sekarang:
+ * - titik berwarna dengan tepi putih, ukurannya mengikuti perbesaran (kecil
+ *   di tampilan nasional supaya tidak saling menimpa, membesar saat didekati);
+ * - SUDAH LAPOR (atau peta tanpa data laporan): lingkaran cahaya lembut
+ *   sewarna di sekelilingnya;
+ * - BELUM LAPOR: cincin abu TIPIS berjarak dari titiknya – tetap terbaca
+ *   sebagai "ada yang kurang", tanpa menimbun warna kondisinya. Sengaja
+ *   pelan: pada pagi hari hampir semua lokasi belum lapor, dan cincin hitam
+ *   tebal di setiap titik itulah yang membuat peta lama terlihat berat;
+ * - bayangan halus di bawah titik supaya terbaca di atas peta maupun satelit;
+ * - kelompok: lingkaran berangka dengan lingkaran cahaya yang sama.
+ */
+const R_TITIK: maplibregl.ExpressionSpecification = [
+  "interpolate",
+  ["linear"],
+  ["zoom"],
+  4,
+  ["case", ["==", ["get", "idle"], 1], 3, 5],
+  7,
+  ["case", ["==", ["get", "idle"], 1], 4, 6.5],
+  11,
+  ["case", ["==", ["get", "idle"], 1], 5, 8.5],
+];
+const R_SEKELILING: maplibregl.ExpressionSpecification = ["interpolate", ["linear"], ["zoom"], 4, 8.5, 7, 11, 11, 14];
 
 /**
  * Koordinat sebuah fitur titik.
@@ -278,16 +314,27 @@ export function PetaMap({
     map.on("load", () => {
       map.addSource(SUMBER_LOKASI, { type: "geojson", data, ...KELOMPOK_OPSI(kelompok) });
       map.addLayer({
+        id: LAPIS_KELOMPOK_HALO,
+        type: "circle",
+        source: SUMBER_LOKASI,
+        filter: ["has", "point_count"],
+        paint: {
+          "circle-color": token("--color-primary"),
+          "circle-opacity": 0.2,
+          "circle-radius": ["step", ["get", "point_count"], 21, 10, 25, 50, 31],
+        },
+      });
+      map.addLayer({
         id: LAPIS_KELOMPOK,
         type: "circle",
         source: SUMBER_LOKASI,
         filter: ["has", "point_count"],
         paint: {
           "circle-color": token("--color-primary"),
-          "circle-opacity": 0.9,
+          "circle-opacity": 1,
           "circle-stroke-width": 2,
           "circle-stroke-color": token("--color-surface"),
-          "circle-radius": ["step", ["get", "point_count"], 15, 10, 19, 50, 25],
+          "circle-radius": ["step", ["get", "point_count"], 14, 10, 17, 50, 22],
         },
       });
       map.addLayer({
@@ -303,16 +350,59 @@ export function PetaMap({
         paint: { "text-color": token("--color-surface") },
       });
       map.addLayer({
+        id: LAPIS_BAYANG,
+        type: "circle",
+        source: SUMBER_LOKASI,
+        filter: ["!", ["has", "point_count"]],
+        paint: {
+          "circle-color": token("--color-ink"),
+          "circle-opacity": ["case", ["==", ["get", "idle"], 1], 0.12, 0.28],
+          "circle-blur": 0.7,
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 6, 7, 8, 11, 10.5],
+          "circle-translate": [0, 1.5],
+        },
+      });
+      map.addLayer({
+        id: LAPIS_HALO,
+        type: "circle",
+        source: SUMBER_LOKASI,
+        filter: [
+          "all",
+          ["!", ["has", "point_count"]],
+          ["==", ["get", "belumLapor"], 0],
+          ["==", ["get", "idle"], 0],
+        ],
+        paint: {
+          "circle-color": ["get", "warna"],
+          "circle-opacity": 0.42,
+          "circle-blur": 0.15,
+          "circle-radius": R_SEKELILING,
+        },
+      });
+      map.addLayer({
+        id: LAPIS_CINCIN,
+        type: "circle",
+        source: SUMBER_LOKASI,
+        filter: ["all", ["!", ["has", "point_count"]], ["==", ["get", "belumLapor"], 1]],
+        paint: {
+          "circle-color": "rgba(0,0,0,0)",
+          "circle-radius": R_SEKELILING,
+          "circle-stroke-width": 1.5,
+          "circle-stroke-color": token("--color-ink-muted"),
+          "circle-stroke-opacity": 0.75,
+        },
+      });
+      map.addLayer({
         id: LAPIS_TITIK,
         type: "circle",
         source: SUMBER_LOKASI,
         filter: ["!", ["has", "point_count"]],
         paint: {
           "circle-color": ["get", "warna"],
-          "circle-opacity": ["case", ["==", ["get", "idle"], 1], 0.45, 0.95],
-          "circle-radius": ["case", ["==", ["get", "idle"], 1], 5, 7],
-          "circle-stroke-width": ["case", ["==", ["get", "belumLapor"], 1], 3, 1.4],
-          "circle-stroke-color": ["case", ["==", ["get", "belumLapor"], 1], token("--color-ink"), token("--color-surface")],
+          "circle-opacity": ["case", ["==", ["get", "idle"], 1], 0.55, 1],
+          "circle-radius": R_TITIK,
+          "circle-stroke-width": ["case", ["==", ["get", "idle"], 1], 1, 2],
+          "circle-stroke-color": token("--color-surface"),
         },
       });
       map.addLayer({
@@ -322,7 +412,7 @@ export function PetaMap({
         filter: ["==", ["get", "id"], "__tidak_ada__"],
         paint: {
           "circle-color": "rgba(0,0,0,0)",
-          "circle-radius": 13,
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 12, 11, 17],
           "circle-stroke-width": 3,
           "circle-stroke-color": token("--color-primary"),
         },
