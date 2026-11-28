@@ -1,8 +1,8 @@
--- KATALOG HARGA WILAYAH (DECISIONS 806)
-ALTER TABLE "hsd_usulan_ai" ADD COLUMN "metode" TEXT;
-ALTER TABLE "hsd_usulan_ai" ADD COLUMN "sumber" JSONB;
+-- KATALOG HARGA WILAYAH (DECISIONS 806). Idempoten: aman dijalankan ulang.
+ALTER TABLE "hsd_usulan_ai" ADD COLUMN IF NOT EXISTS "metode" TEXT;
+ALTER TABLE "hsd_usulan_ai" ADD COLUMN IF NOT EXISTS "sumber" JSONB;
 
-CREATE TABLE "harga_wilayah" (
+CREATE TABLE IF NOT EXISTS "harga_wilayah" (
     "id" UUID NOT NULL,
     "org_id" UUID NOT NULL,
     "provinsi" TEXT NOT NULL,
@@ -24,7 +24,8 @@ CREATE TABLE "harga_wilayah" (
     CONSTRAINT "harga_wilayah_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "harga_wilayah_org_id_provinsi_kabupaten_kategori_nama_satua_key" ON "harga_wilayah"("org_id", "provinsi", "kabupaten", "kategori", "nama", "satuan");
-CREATE INDEX "harga_wilayah_org_id_provinsi_kabupaten_idx" ON "harga_wilayah"("org_id", "provinsi", "kabupaten");
+CREATE UNIQUE INDEX IF NOT EXISTS "harga_wilayah_org_id_provinsi_kabupaten_kategori_nama_satua_key" ON "harga_wilayah"("org_id", "provinsi", "kabupaten", "kategori", "nama", "satuan");
+CREATE INDEX IF NOT EXISTS "harga_wilayah_org_id_provinsi_kabupaten_idx" ON "harga_wilayah"("org_id", "provinsi", "kabupaten");
 
+ALTER TABLE "harga_wilayah" DROP CONSTRAINT IF EXISTS "harga_wilayah_org_id_fkey";
 ALTER TABLE "harga_wilayah" ADD CONSTRAINT "harga_wilayah_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
