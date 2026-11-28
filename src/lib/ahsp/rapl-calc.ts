@@ -592,6 +592,8 @@ export type KomponenItem = {
   hargaDariKontrak: boolean;
   /** null selama harganya belum diisi — BUKAN nol. */
   biaya: bigint | null;
+  /** Harga rujukan templat (DECISIONS 802) – dibawa apa adanya, tidak pernah masuk `biaya`. */
+  hargaAcuan: number | null;
 };
 
 /** Bagaimana biaya item ini disusun. */
@@ -608,6 +610,8 @@ export type BiayaItem = {
   cara: CaraItem;
   /** Asal analisa yang dipakai: berkas kontrak atau padanan AHSP PUPR. null = tanpa analisa. */
   sumberAnalisa: SumberAnalisa | null;
+  /** Id templat RAPL bila `sumberAnalisa` = `templat`. */
+  templat: string | null;
   komponen: KomponenItem[];
   /** Σ biaya komponen yang SUDAH berharga; borongan = harga × volume. */
   biaya: bigint;
@@ -665,6 +669,7 @@ export function hitungItemRapl(items: ItemUntukRapl[], harga: HargaSatuan[]): Bi
       catatanKonversi: it.rincian?.catatanKonversi ?? null,
       hargaBorongan: it.rincian?.hargaBorongan ?? null,
       sumberAnalisa: it.analisa ? (it.analisa.sumber ?? "ahsp") : null,
+      templat: it.analisa?.templat ?? null,
     };
 
     const pecah = pecahItem(it);
@@ -717,6 +722,7 @@ export function hitungItemRapl(items: ItemUntukRapl[], harga: HargaSatuan[]): Bi
         harga: h,
         hargaDariKontrak: hLokasi === null && hKontrak !== null,
         biaya: h === null ? null : BigInt(Math.round(jumlah * Number(h))),
+        hargaAcuan: c.komponen.hargaAcuan ?? null,
       };
     });
 

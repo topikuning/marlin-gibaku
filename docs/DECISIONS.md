@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 803 | 2026-11-28 | RAPL siap isi harga: sekali klik jadi Excel per lokasi / per paket (Rekapitulasi, Isi Harga satu baris per sumber daya, Rincian per lokasi berumus ke Isi Harga); harga hanya yang sudah disetujui (HSD, analisa kontrak), acuan sebagai rujukan, HSD berbeda antar-lokasi tidak dipilihkan; biaya di luar item RAB & tak terduga 1,5% kuning |
 | 802 | 2026-11-28 | RAPL: templat jadi sumber rincian keempat (sesudah analisa kontrak, AHSP disetujui, draf AI diterima) dan dipakai langsung tanpa persetujuan per uraian (keputusan user, menggeser 326/652), selalu ditandai "templat"; harga acuan & perkiraan dari RAB hanya rujukan, tidak masuk biaya; kategori baru jasa & biaya umum; draf AI hanya untuk item templat GEN |
 | 801 | 2026-11-28 | RAPL: mesin templat pengurai item RAB ditulis ulang dari prototipe referensi user (145 templat, 200 sumber daya, aturan pengenal berurutan); harga acuan dan perkiraan dari RAB dipisah sebagai rujukan, bukan harga dipakai; 376/376 uraian keluaran prototipe terurai sama persis |
 

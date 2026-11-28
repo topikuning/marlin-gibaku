@@ -253,6 +253,25 @@ export default async function RaplPage({
 
   return (
     <div className="space-y-4">
+      {/*
+        SEKALI KLIK (DECISIONS 803) – permintaan user 2026-11-28: "rapl itu
+        sekali klik jadi file siap download … yang tinggal isi harga tiap item
+        breakdown". Biaya & selisih ikut di berkasnya, jadi pintunya rapl.view.
+      */}
+      {adaRab && canExport && canSeeMargin ? (
+        <Banner
+          tone="info"
+          title="RAPL siap isi harga – sekali klik"
+          description="Seluruh item RAB sudah terurai (analisa kontrak, AHSP, usulan AI, atau templat RAPL) dalam satu Excel. Isi harga sekali per sumber daya di sheet Isi Harga; rincian per item dan rekapitulasi ikut terhitung. Harga acuan di sebelahnya hanya rujukan."
+          action={
+            <ButtonLink href={`/lokasi/${slug}/rapl/siap-isi`} size="sm" unduhan labelSibuk="Menyiapkan Excel…">
+              <Download aria-hidden className="size-3.5" />
+              Unduh RAPL siap isi
+            </ButtonLink>
+          }
+        />
+      ) : null}
+
       {itemKontrak > 0 ? (
         <Banner
           tone="info"
@@ -267,9 +286,9 @@ export default async function RaplPage({
 
       {!basis && cakupan.item > 0 ? (
         <Banner
-          tone="warning"
+          tone="info"
           title="Basis analisa AHSP belum dimuat"
-          description="Tanpa basis AHSP, item yang tidak punya analisa di berkas kontrak belum bisa diurai menjadi kebutuhan bahan dan upah. Muat dulu di halaman Sistem."
+          description="Item yang tidak punya analisa di berkas kontrak diurai dengan templat RAPL. Padanan AHSP PUPR baru bisa dipakai setelah basisnya dimuat di halaman Sistem."
         />
       ) : basis?.belumSelesai ? (
         <Banner

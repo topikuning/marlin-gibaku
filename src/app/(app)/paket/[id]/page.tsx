@@ -781,6 +781,13 @@ export default async function RingkasanPaketPage({
                     Periksa kontrak & adendum
                   </ButtonLink>
                   <ButtonLink href={`/paket/${pkg.id}/lokasi`}>Periksa RAB per lokasi</ButtonLink>
+                  {/* RAPL seluruh lokasi paket sekali klik, satu sheet Isi Harga
+                      bersama (DECISIONS 803). Memuat biaya & selisih → rapl.view. */}
+                  {recon.withRab > 0 && can(user.role, "report.export") && can(user.role, "rapl.view") ? (
+                    <ButtonLink href={`/paket/${pkg.id}/rapl-siap-isi`} unduhan labelSibuk="Menyiapkan Excel RAPL…">
+                      Unduh RAPL siap isi ({recon.withRab} lokasi)
+                    </ButtonLink>
+                  ) : null}
                 </div>
 
                 <details>
