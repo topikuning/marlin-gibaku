@@ -388,6 +388,7 @@ model Organization {
   vendors         Vendor[]
   documents       Document[]
   masterLocations MasterLocation[]
+  hargaWilayah    HargaWilayah[]
   waSenderAliases WaSenderAlias[]
 
   @@map("organizations")
@@ -4052,6 +4053,10 @@ model HsdUsulanAi {
   /// rendah | sedang | tinggi
   keyakinan String
   alasan    String
+  /// web | ai | lapangan (DECISIONS 806). null = draf lama (estimasi AI).
+  metode    String?
+  /// [{url, judul}] – hanya alamat yang benar-benar muncul di hasil pencarian.
+  sumber    Json?
   /// draf | diterima | ditolak
   status    String   @default("draf")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
@@ -4061,6 +4066,45 @@ model HsdUsulanAi {
   @@unique([runId, kategori, nama, satuan])
   @@index([runId, status])
   @@map("hsd_usulan_ai")
+}
+
+/// KATALOG HARGA WILAYAH (DECISIONS 806).
+///
+/// Harga satu sumber daya di satu KABUPATEN, hasil riset: pencarian web lewat
+/// AI (dengan alamat sumbernya), atau estimasi AI bila web tidak tersedia.
+/// Satu riset dipakai semua lokasi sekabupaten – 83 lokasi tidak berarti 83
+/// kali mencari harga semen yang sama.
+///
+/// Katalog ini RUJUKAN: tidak pernah masuk biaya. Yang masuk biaya hanya HSD
+/// lokasi, dan itu baru terisi setelah orang memakai usulannya.
+model HargaWilayah {
+  id         String   @id @default(uuid()) @db.Uuid
+  orgId      String   @map("org_id") @db.Uuid
+  provinsi   String
+  kabupaten  String
+  kategori   String
+  nama       String
+  satuan     String
+  harga      BigInt
+  hargaMin   BigInt?  @map("harga_min")
+  hargaMaks  BigInt?  @map("harga_maks")
+  /// web (ada sumber terverifikasi) | ai (estimasi tanpa sumber)
+  metode     String
+  /// rendah | sedang | tinggi
+  keyakinan  String
+  alasan     String
+  /// [{url, judul}] – hanya alamat yang muncul di hasil pencarian.
+  sumber     Json     @default("[]")
+  model      String?
+  /// Kapan harga ini diriset. Lebih tua dari batas umur = diriset ulang.
+  diperbarui DateTime @default(now()) @map("diperbarui_at") @db.Timestamptz
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, provinsi, kabupaten, kategori, nama, satuan])
+  @@index([orgId, provinsi, kabupaten])
+  @@map("harga_wilayah")
 }
 
 /// RINCIAN PELAKSANAAN SATU ITEM RAB (RAPL-08, DECISIONS 473).

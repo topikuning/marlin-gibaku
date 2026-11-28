@@ -164,6 +164,17 @@ export async function simpanHargaSel(args: {
 
 const SUMBER_MANUAL = "Input manual";
 const SUMBER_AI = "Usulan AI – disetujui pengguna";
+/** Asal usulan yang dipakai (DECISIONS 806) – supaya HSD tidak terbaca sebagai survei. */
+const SUMBER_WEB = "Harga web (katalog wilayah) – disetujui pengguna";
+const SUMBER_LAPANGAN = "Harga lapangan sekabupaten – disetujui pengguna";
+const sumberDari = (metode: string | null) =>
+  metode === "web" ? SUMBER_WEB : metode === "lapangan" ? SUMBER_LAPANGAN : SUMBER_AI;
+/** Alamat sumber web ditulis di catatan HSD – jejak yang bisa dibuka ulang. */
+function catatanSumber(sumber: unknown): string | null {
+  if (!Array.isArray(sumber)) return null;
+  const url = (sumber as { url?: unknown }[]).map((x) => x?.url).filter((u): u is string => typeof u === "string");
+  return url.length > 0 ? `Sumber: ${url.join(" ; ")}`.slice(0, 1_000) : null;
+}
 
 const mintaSkema = z.object({
   locationId: z.uuid(),
@@ -307,7 +318,7 @@ export async function terapkanUsulanHargaAiAction(args: {
 
     const draf = await db.hsdUsulanAi.findMany({
       where: { id: { in: d.ids }, status: "draf", run: { locationId: d.locationId } },
-      select: { id: true, kategori: true, nama: true, satuan: true, harga: true },
+      select: { id: true, kategori: true, nama: true, satuan: true, harga: true, metode: true, sumber: true },
     });
     if (draf.length === 0) {
       return { ok: false, error: "Tidak ada draf yang bisa diterapkan. Mungkin sudah diputuskan sebelumnya." };
@@ -343,10 +354,11 @@ export async function terapkanUsulanHargaAiAction(args: {
             nama: u.nama,
             satuan: u.satuan,
             harga: u.harga,
-            sumber: SUMBER_AI,
+            sumber: sumberDari(u.metode),
+            catatan: catatanSumber(u.sumber),
             updatedById: user.id,
           },
-          update: { harga: u.harga, sumber: SUMBER_AI, updatedById: user.id },
+          update: { harga: u.harga, sumber: sumberDari(u.metode), catatan: catatanSumber(u.sumber), updatedById: user.id },
         });
       }
       await tx.hsdUsulanAi.updateMany({

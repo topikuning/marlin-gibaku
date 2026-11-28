@@ -89,11 +89,11 @@ const item = (lk: string, code: string, name: string, unit: string, volume: numb
 });
 
 /** Lokasi dengan beton (±8 sumber daya templat) + 30 barang jadi (satu sumber daya masing-masing). */
-async function buatLokasi(nama: string): Promise<{ id: string; slug: string }> {
+async function buatLokasi(nama: string, kabupaten = "Demak"): Promise<{ id: string; slug: string }> {
   const slug = `${nama.toLowerCase()}-${suffix}`;
   const id = (
     await db.location.create({
-      data: { packageId: paketId, name: nama, slug, village: `Desa ${nama}`, regency: "Demak", province: "Jawa Tengah", status: "berjalan" },
+      data: { packageId: paketId, name: nama, slug, village: `Desa ${nama}`, regency: kabupaten, province: "Jawa Tengah", status: "berjalan" },
     })
   ).id;
   const nodes = [
@@ -124,7 +124,9 @@ beforeAll(async () => {
   sesi = { id: adminId, orgId: org.id, role: "super_admin" };
   paketId = (await db.package.create({ data: { orgId: org.id, name: `Paket ${suffix}`, stage: "pelaksanaan" } })).id;
   A = await buatLokasi("Alfa");
-  B = await buatLokasi("Beta");
+  // Kabupaten lain: lokasi sekabupaten memakai katalog harga wilayah (DECISIONS
+  // 806) dan tidak meminta AI lagi – di sini yang diuji justru perputarannya.
+  B = await buatLokasi("Beta", "Jepara");
   // Satu harga sudah diisi orang di lokasi A: tidak boleh dimintakan.
   await db.hargaSatuanDasar.create({
     data: { locationId: A.id, kategori: "bahan", nama: "Perangkat khusus nomor 1", satuan: "unit", harga: 990_000n, sumber: "Input manual", updatedById: adminId },
@@ -146,7 +148,9 @@ describe("estimasi semua harga lokasi", () => {
     expect(r).toMatchObject({ ok: true, diminta: kosong.length, totalKosong: kosong.length });
     const run = await tungguSelesai(A.id);
 
-    expect(run).toMatchObject({ status: "selesai", errorMessage: null, diminta: kosong.length });
+    // Tanpa provider Claude di lingkungan uji: estimasi tanpa web, dan itu disebut (DECISIONS 806).
+    expect(run).toMatchObject({ status: "selesai", diminta: kosong.length });
+    expect(run.errorMessage).toContain("bukan Claude");
     expect(kiriman).toHaveLength(Math.ceil(kosong.length / 25));
     const diminta = kiriman.flatMap((k) => k.nama);
     expect(new Set(diminta).size).toBe(diminta.length);

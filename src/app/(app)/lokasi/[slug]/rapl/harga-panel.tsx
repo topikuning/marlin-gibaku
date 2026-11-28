@@ -269,7 +269,13 @@ export function HargaPanel({
       ) : null}
 
       {!usulan.menunggu && usulan.error ? (
-        <Banner tone="error" title="Permintaan draf harga gagal" description={usulan.error} />
+        jumlahDraf > 0 ? (
+          // Ada usulan yang jadi: bukan kegagalan, tapi orang perlu tahu
+          // mengapa sebagian tanpa sumber web atau belum diestimasi (DECISIONS 806).
+          <Banner tone="warning" title="Estimasi selesai dengan catatan" description={usulan.error} />
+        ) : (
+          <Banner tone="error" title="Permintaan draf harga gagal" description={usulan.error} />
+        )
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-inset px-3 py-2">

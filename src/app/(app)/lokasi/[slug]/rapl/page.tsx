@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Download, Printer } from "lucide-react";
 import {
   Banner,
@@ -526,11 +527,18 @@ export default async function RaplPage({
             />
             <CardBody className="space-y-4">
               {ringkasanBiaya}
-              <Kenapa judul="Bagaimana harga manual, AI, dan rekomendasi dipakai?">
-                Harga yang Anda isi langsung tersimpan sebagai HSD lokasi. AI hanya membuat draf untuk
-                komponen yang kosong. Drafnya tersimpan di server, jadi tidak hilang saat Anda pindah
-                tab, dan baru masuk hitungan setelah Anda mencentangnya lalu menekan Pakai. Harga dari
-                lokasi lain juga hanya referensi. Semua sumber harga terlihat di tabel.
+              <Kenapa judul="Dari mana usulan harga datang?">
+                Harga yang Anda isi langsung tersimpan sebagai HSD lokasi. &ldquo;Estimasi semua
+                harga&rdquo; mengusulkan harga untuk yang masih kosong, berurutan: harga yang diisi
+                orang di lokasi lain sekabupaten, lalu katalog harga wilayah, lalu riset baru. Riset
+                mencari harga di web untuk kabupaten ini bila provider AI-nya Claude, dan alamat
+                sumbernya dicatat; bila sumber tidak ditemukan, usulannya ditandai estimasi AI. Hasil
+                riset disimpan di{" "}
+                <Link href="/katalog-harga" className="font-medium text-primary hover:underline">
+                  katalog harga wilayah
+                </Link>{" "}
+                dan dipakai lagi oleh lokasi sekabupaten. Semua usulan baru masuk hitungan setelah
+                Anda memakainya.
               </Kenapa>
               <HargaPanel
                 locationId={location.id}
