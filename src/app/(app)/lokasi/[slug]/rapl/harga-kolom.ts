@@ -45,9 +45,6 @@ export type BarisHargaRow = {
   nilaiTertahan: string;
   /** Harga sumber daya yang sama di lokasi lain — bahan pertimbangan. */
   rekomendasi: { harga: string; lokasi: string; kabupaten: string; seKabupaten: boolean }[];
-  /** Harga acuan templat RAPL – rujukan, bukan harga (DECISIONS 804). */
-  hargaAcuan: number | null;
-  asalAcuan: "katalog" | "rab" | null;
 };
 
 export type Baris = BarisHargaRow & {
@@ -55,7 +52,6 @@ export type Baris = BarisHargaRow & {
   hargaNum: number | null;
   biayaNum: number | null;
   rekomendasiTeks: string;
-  hargaAcuanNum: number | null;
   usulanId: string | null;
   usulanAiNum: number | null;
   keyakinanAi: string;
@@ -65,12 +61,9 @@ export type Baris = BarisHargaRow & {
 export function kolomHarga({
   canInput,
   adaDraf,
-  adaAcuan = false,
 }: {
   canInput: boolean;
   adaDraf: boolean;
-  /** Ada sumber daya berharga acuan templat (DECISIONS 804). */
-  adaAcuan?: boolean;
 }): ColDef<Baris>[] {
   const nama: ColDef<Baris> = {
     field: "nama",
@@ -110,25 +103,6 @@ export function kolomHarga({
     cellClass: () => cn("tabular text-right", canInput && "bg-[var(--color-surface-muted)]"),
   };
 
-  /*
-   * Harga acuan templat (DECISIONS 804): rujukan di sebelah harga, bukan harga.
-   * Tidak bisa diedit dan tidak ikut biaya; dipakai lewat tombol "Pakai harga
-   * acuan". Kolomnya hanya ada bila ada acuan, supaya lokasi tanpa templat
-   * tidak memajang kolom kosong.
-   */
-  const acuan: ColDef<Baris> = {
-    ...rupiahCol<Baris>("hargaAcuanNum", "Harga acuan"),
-    width: 140,
-    cellClass: "tabular text-right text-ink-muted",
-    tooltipValueGetter: (p) =>
-      p.data?.asalAcuan === "rab"
-        ? "Perkiraan dari harga satuan RAB item ini"
-        : p.data?.asalAcuan === "katalog"
-          ? "Estimasi katalog templat RAPL (pasar Sulut Nov 2026), belum survei pemasok"
-          : undefined,
-  };
-  const hargaDanAcuan = adaAcuan ? [harga, acuan] : [harga];
-
   const biaya: ColDef<Baris> = { ...rupiahCol<Baris>("biayaNum", "Biaya"), width: 150 };
 
   const sumber: ColDef<Baris> = {
@@ -149,7 +123,7 @@ export function kolomHarga({
     tooltipField: "rekomendasiTeks",
   };
 
-  if (!adaDraf) return [nama, kategori, jumlah, satuan, ...hargaDanAcuan, biaya, sumber, rekomendasi];
+  if (!adaDraf) return [nama, kategori, jumlah, satuan, harga, biaya, sumber, rekomendasi];
 
   const usulan: ColDef<Baris> = {
     ...rupiahCol<Baris>("usulanAiNum", "Usulan AI"),
@@ -175,5 +149,5 @@ export function kolomHarga({
     tooltipField: "alasanAi",
   };
 
-  return [nama, kategori, satuan, usulan, keyakinan, ...hargaDanAcuan, alasan, rekomendasi, jumlah, biaya, sumber];
+  return [nama, kategori, satuan, usulan, keyakinan, harga, alasan, rekomendasi, jumlah, biaya, sumber];
 }

@@ -5,13 +5,10 @@
  * item RAB menjadi daftar komponen (bahan, upah, alat, jasa, biaya umum)
  * beserta KOEFISIEN per satuan item – jumlahnya dikali volume oleh pemakai.
  *
- * Soal harga, dua hal dibedakan dan tidak pernah dicampur:
- * - `hargaAcuan` = estimasi harga pasar dari katalog referensi (Sulut, Nov
- *   2026). BELUM terverifikasi pemasok; dipakai hanya sebagai rujukan, atau
- *   lewat alur persetujuan HSD – tidak pernah diam-diam jadi harga.
- * - `faktorHargaRab` = komponen yang di referensi diperkirakan dari harga
- *   satuan RAB itu sendiri (barang jadi, ongkos kirim, biaya resmi): harga
- *   perkiraan = harga satuan RAB × faktor. Juga hanya rujukan.
+ * TANPA HARGA (koreksi user 2026-11-28, DECISIONS 805): harga di prototipe
+ * referensi (katalog Sulut, harga K3, faktor dari harga satuan RAB) adalah
+ * contoh untuk proyek itu, bukan acuan. Mesin ini hanya mengurai ITEM; harga
+ * ditentukan per lokasi oleh MARLIN sendiri.
  */
 import { klasifikasiItem } from "./klasifikasi";
 import SUMBER_DAYA from "./sumber-daya.json";
@@ -55,7 +52,6 @@ export type SumberDaya = {
   kunci: string;
   nama: string;
   satuan: string;
-  hargaAcuan: number;
   kategori: KategoriRapl;
   kelompok: string;
 };
@@ -69,10 +65,6 @@ export type KomponenTemplat = {
   satuan: string;
   /** Per satuan item RAB. */
   koefisien: number;
-  /** Estimasi katalog – rujukan, bukan harga dipakai. */
-  hargaAcuan: number | null;
-  /** Harga perkiraan = harga satuan RAB × faktor (rujukan). */
-  faktorHargaRab: number | null;
 };
 
 export type HasilUrai = {
@@ -116,25 +108,6 @@ export function pvcMenurutUraian(uraian: string): string {
   return "pvc2";
 }
 
-/** Harga acuan perlengkapan K3 (`K3P` referensi) – kata pertama yang cocok. */
-const HARGA_K3: readonly [string, number][] = [
-  ["sepatu", 180000],
-  ["topi pelindung", 55000],
-  ["p3k", 3200000],
-  ["papan nama", 650000],
-  ["jalur evakuasi", 350000],
-  ["apar", 480000],
-  ["rompi", 35000],
-  ["rambu", 55000],
-  ["masker", 4000],
-  ["pernapasan", 4000],
-  ["sarung tangan", 8000],
-  ["rambuncis", 80000],
-  ["lampu darurat", 65000],
-  ["pembatas", 90000],
-  ["bendera", 35000],
-];
-
 /** Nama tampil: tanpa "Pekerjaan"/"Pek." di depan, huruf pertama besar (`prettify`). */
 export function namaTampil(uraian: string): string {
   const d = uraian.trim().replace(/\s+/g, " ").replace(/^~+/, "").trim().replace(/^(pekerjaan|pek\.)\s+/i, "");
@@ -151,28 +124,11 @@ function dariKatalog(kunci: string, koefisien: number): KomponenTemplat {
     nama: s.nama,
     satuan: s.satuan,
     koefisien,
-    hargaAcuan: s.hargaAcuan,
-    faktorHargaRab: null,
   };
 }
 
-function khusus(
-  kategori: KategoriRapl,
-  kelompok: string,
-  nama: string,
-  satuan: string,
-  harga: { acuan?: number; faktor?: number },
-): KomponenTemplat {
-  return {
-    kunci: null,
-    kategori,
-    kelompok,
-    nama,
-    satuan,
-    koefisien: 1,
-    hargaAcuan: harga.acuan ?? null,
-    faktorHargaRab: harga.faktor ?? null,
-  };
+function khusus(kategori: KategoriRapl, kelompok: string, nama: string, satuan: string): KomponenTemplat {
+  return { kunci: null, kategori, kelompok, nama, satuan, koefisien: 1 };
 }
 
 function dariTemplat(id: string, uraian: string): KomponenTemplat[] {
@@ -202,13 +158,7 @@ export function uraiItem(item: { uraian: string; satuan: string; induk?: string 
 
   const s = uraian.toLowerCase();
   if (templat === "K3") {
-    const acuan = HARGA_K3.find(([k]) => s.includes(k))?.[1];
-    return {
-      templat,
-      komponen: [
-        khusus("Bahan", "Material K3 dan Perlengkapan", namaTampil(uraian), satuan, acuan ? { acuan } : { faktor: 0.8 }),
-      ],
-    };
+    return { templat, komponen: [khusus("Bahan", "Material K3 dan Perlengkapan", namaTampil(uraian), satuan)] };
   }
   if (templat === "FIX") {
     let kategori: KategoriRapl = "Jasa, Subkon dan Biaya Resmi";
@@ -218,7 +168,7 @@ export function uraiItem(item: { uraian: string; satuan: string; induk?: string 
       kategori === "Alat dan Angkutan" ? `Mobilisasi dan demobilisasi ${namaTampil(uraian).toLowerCase()}` : namaTampil(uraian);
     return {
       templat,
-      komponen: [khusus(kategori, kategori.startsWith("Jasa") ? "Biaya Resmi" : "Paket", nama, satuan, { faktor: 1 })],
+      komponen: [khusus(kategori, kategori.startsWith("Jasa") ? "Biaya Resmi" : "Paket", nama, satuan)],
     };
   }
   if (templat === "FB") {
@@ -227,22 +177,22 @@ export function uraiItem(item: { uraian: string; satuan: string; induk?: string 
       return {
         templat,
         komponen: [
-          khusus("Bahan", "Komponen Jadi dan Pengadaan", "Tempat sampah portable 1100 liter (Krisbow)", satuan, { acuan: 3600000 }),
-          khusus("Alat dan Angkutan", "Angkutan", "Ongkos kirim tempat sampah ke lokasi", satuan, { acuan: 450000 }),
+          khusus("Bahan", "Komponen Jadi dan Pengadaan", "Tempat sampah portable 1100 liter", satuan),
+          khusus("Alat dan Angkutan", "Angkutan", "Ongkos kirim tempat sampah ke lokasi", satuan),
         ],
       };
     if (s.includes("pengiriman bahan"))
       return {
         templat,
         komponen: [
-          khusus("Alat dan Angkutan", "Angkutan", "Ongkos kirim bahan ke lokasi", satuan, { faktor: 0.55 }),
-          khusus("Upah", "Tenaga Kerja", "Tenaga perakitan di lokasi", satuan, { faktor: 0.25 }),
+          khusus("Alat dan Angkutan", "Angkutan", "Ongkos kirim bahan ke lokasi", satuan),
+          khusus("Upah", "Tenaga Kerja", "Tenaga perakitan di lokasi", satuan),
         ],
       };
     const barang = induk ? namaTampil(induk).slice(0, 50).toLowerCase() : "paket";
     return {
       templat,
-      komponen: [khusus("Alat dan Angkutan", "Angkutan", `Ongkos kirim barang ke lokasi (${barang})`, satuan, { faktor: 0.75 })],
+      komponen: [khusus("Alat dan Angkutan", "Angkutan", `Ongkos kirim barang ke lokasi (${barang})`, satuan)],
     };
   }
   // GEN – barang jadi/pekerjaan yang tidak dikenali templat mana pun.
@@ -250,6 +200,6 @@ export function uraiItem(item: { uraian: string; satuan: string; induk?: string 
     s.trim() === "pengadaan barang" && induk ? `Pengadaan ${namaTampil(induk).slice(0, 60)}` : namaTampil(uraian);
   return {
     templat: "GEN",
-    komponen: [khusus("Bahan", "Komponen Jadi dan Pengadaan", nama, satuan, { faktor: 0.82 })],
+    komponen: [khusus("Bahan", "Komponen Jadi dan Pengadaan", nama, satuan)],
   };
 }

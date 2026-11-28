@@ -215,8 +215,6 @@ export default async function RaplPage({
         kabupaten: r.kabupaten,
         seKabupaten: r.seKabupaten,
       })),
-      hargaAcuan: h.hargaAcuan ?? null,
-      asalAcuan: h.asalAcuan ?? null,
     }));
 
   // Saringan pembuka mengikuti tahap yang sedang aktif — bukan tebakan yang
@@ -264,7 +262,7 @@ export default async function RaplPage({
         <Banner
           tone="info"
           title="RAPL siap isi harga – sekali klik"
-          description="Seluruh item RAB sudah terurai (analisa kontrak, AHSP, usulan AI, atau templat RAPL) dalam satu Excel. Isi harga sekali per sumber daya di sheet Isi Harga; rincian per item dan rekapitulasi ikut terhitung. Harga acuan di sebelahnya hanya rujukan."
+          description="Seluruh item RAB sudah terurai (analisa kontrak, AHSP, usulan AI, atau templat RAPL) dalam satu Excel. Isi harga sekali per sumber daya di sheet Isi Harga; rincian per item dan rekapitulasi ikut terhitung. Usulan harga lokasi ini (bila sudah diestimasi) ada di sebelahnya, belum ikut jumlah."
           action={
             <ButtonLink href={`/lokasi/${slug}/rapl/siap-isi`} size="sm" unduhan labelSibuk="Menyiapkan Excel…">
               <Download aria-hidden className="size-3.5" />
@@ -515,7 +513,7 @@ export default async function RaplPage({
           <>
             <CardHeader
               title="Kebutuhan proyek & harga satuan"
-              subtitle={`${harga.baris.length} komponen dari RAB aktif · isi harga sendiri, pakai harga acuan templat, atau minta draf perkiraan AI untuk harga yang masih kosong.`}
+              subtitle={`${harga.baris.length} komponen dari RAB aktif · isi harga sendiri, atau estimasikan semua harga untuk lokasi ini sekali klik lalu pakai yang Anda setujui.`}
               action={
                 // Unduhannya memuat kolom margin – ikut `rapl.view`, bukan hanya export.
                 canExport && canSeeMargin ? (
@@ -528,14 +526,11 @@ export default async function RaplPage({
             />
             <CardBody className="space-y-4">
               {ringkasanBiaya}
-              <Kenapa judul="Bagaimana harga manual, acuan, AI, dan rekomendasi dipakai?">
-                Harga yang Anda isi langsung tersimpan sebagai HSD lokasi. Kolom Harga acuan berasal
-                dari templat RAPL: estimasi katalog pasar Sulawesi Utara November 2026 yang belum
-                disurvei, atau perkiraan dari harga satuan RAB. Acuan baru masuk hitungan setelah Anda
-                menekan Pakai harga acuan, dan hanya mengisi yang masih kosong. AI hanya membuat draf
-                untuk komponen yang kosong. Drafnya tersimpan di server, jadi tidak hilang saat Anda
-                pindah tab, dan baru masuk hitungan setelah Anda mencentangnya lalu menekan Pakai.
-                Harga dari lokasi lain juga hanya referensi. Semua sumber harga terlihat di tabel.
+              <Kenapa judul="Bagaimana harga manual, AI, dan rekomendasi dipakai?">
+                Harga yang Anda isi langsung tersimpan sebagai HSD lokasi. AI hanya membuat draf untuk
+                komponen yang kosong. Drafnya tersimpan di server, jadi tidak hilang saat Anda pindah
+                tab, dan baru masuk hitungan setelah Anda mencentangnya lalu menekan Pakai. Harga dari
+                lokasi lain juga hanya referensi. Semua sumber harga terlihat di tabel.
               </Kenapa>
               <HargaPanel
                 locationId={location.id}

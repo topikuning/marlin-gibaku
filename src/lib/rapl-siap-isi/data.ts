@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { keadaanItemRapl } from "@/lib/ahsp/rapl";
-import type { BiayaItem } from "@/lib/ahsp/rapl-calc";
+import { kunciSumberDaya, type BiayaItem } from "@/lib/ahsp/rapl-calc";
 import { kategoriDariLineage } from "@/lib/rab/kategori-lineage";
 import { HARI_ADENDUM } from "@/lib/kontrak-berlaku";
 import { durasiKontrakBerlaku } from "@/lib/progress-calc";
@@ -29,6 +29,11 @@ export type LokasiRaplSiapIsi = {
   /** Volume beton struktural (m³) – banyaknya benda uji kuat tekan. */
   volumeBetonM3: number;
   kategori: { kode: string; nama: string; item: BiayaItem[] }[];
+  /**
+   * Usulan harga estimasi untuk LOKASI INI yang belum diputuskan (draf run
+   * terakhir, DECISIONS 805), per `kunciSumberDaya`. Rujukan, bukan harga.
+   */
+  usulan: Map<string, bigint>;
 };
 
 /** Bulan dibulatkan ke 0,5 terdekat, minimal 1. */
@@ -58,12 +63,17 @@ export async function muatRaplSiapIsi(locationIds: string[]): Promise<LokasiRapl
       },
     });
     if (!loc) continue;
-    const [per, kategoriRab] = await Promise.all([
+    const [per, kategoriRab, run] = await Promise.all([
       keadaanItemRapl(id),
       db.rabNode.findMany({
         where: { revision: { locationId: id, status: "aktif" }, kind: "kategori" },
         orderBy: { sortOrder: "asc" },
         select: { lineageKey: true, code: true, name: true },
+      }),
+      db.hsdUsulanRun.findFirst({
+        where: { locationId: id },
+        orderBy: { createdAt: "desc" },
+        select: { usulan: { where: { status: "draf" }, select: { kategori: true, nama: true, satuan: true, harga: true } } },
       }),
     ]);
     const kunci = kategoriRab.map((k) => k.lineageKey);
@@ -90,6 +100,7 @@ export async function muatRaplSiapIsi(locationIds: string[]): Promise<LokasiRapl
         .filter((i) => /m3|m³/i.test(i.satuan) && /beton/i.test(i.uraian) && /fc|mpa|k-?\d{3}/i.test(i.uraian))
         .reduce((s, i) => s + (i.volume ?? 0), 0),
       kategori: [...kelompok.values(), lain].filter((k) => k.item.length > 0),
+      usulan: new Map((run?.usulan ?? []).map((u) => [kunciSumberDaya(u.kategori, u.nama, u.satuan), u.harga])),
     });
   }
   return hasil;

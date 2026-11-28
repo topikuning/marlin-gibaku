@@ -1,11 +1,11 @@
 // EXCEL "RAPL SIAP ISI HARGA" (DECISIONS 803).
 //
 // Keputusan user 2026-11-28: sekali klik jadi Excel yang tinggal diisi harga;
-// kolom harga kosong kecuali harga yang sudah disetujui, harga acuan di
-// sebelahnya. Bukti angka setelah dihitung LibreOffice dicatat di DECISIONS
-// 803; di sini yang dijaga BENTUK berkasnya: harga diisi sekali di Isi Harga
-// dan dirujuk rumus, harga kontrak per item tertulis apa adanya, harga lokasi
-// yang berbeda antar-lokasi tidak dipilihkan.
+// kolom harga kosong kecuali harga yang sudah disetujui. Di sebelahnya usulan
+// harga estimasi UNTUK LOKASI ITU (DECISIONS 805) – bukan harga prototipe
+// referensi. Yang dijaga BENTUK berkasnya: harga diisi sekali di Isi Harga dan
+// dirujuk rumus, harga kontrak per item tertulis apa adanya, harga/usulan yang
+// berbeda antar-lokasi tidak dipilihkan, dan tidak ada angka referensi.
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 import { buildRaplSiapIsiXlsx, daftarSumberDaya } from "@/lib/export/rapl-siap-isi-xlsx";
@@ -17,7 +17,6 @@ const komp = (o: Partial<KomponenItem> & Pick<KomponenItem, "kategori" | "nama" 
   harga: null,
   hargaDariKontrak: false,
   biaya: null,
-  hargaAcuan: null,
   ...o,
 });
 
@@ -42,7 +41,10 @@ const item = (o: Partial<BiayaItem> & Pick<BiayaItem, "code" | "uraian" | "kompo
   ...o,
 });
 
-const lokasi = (nama: string, hargaSemen: bigint | null, hargaPekerja: bigint): LokasiRaplSiapIsi => ({
+const SEMEN = JSON.stringify(["bahan", "Semen Portland komposit 50 kg", "zak"]);
+const BATU = JSON.stringify(["bahan", "Batu belah", "m3"]);
+
+const lokasi = (nama: string, hargaSemen: bigint | null, hargaPekerja: bigint, usulan: [string, bigint][] = []): LokasiRaplSiapIsi => ({
   id: nama,
   nama,
   desa: nama,
@@ -54,6 +56,7 @@ const lokasi = (nama: string, hargaSemen: bigint | null, hargaPekerja: bigint): 
   bulanKontrak: 3.5,
   nilaiRab: 30_000_000n,
   volumeBetonM3: 10,
+  usulan: new Map(usulan),
   kategori: [
     {
       kode: "I",
@@ -63,8 +66,8 @@ const lokasi = (nama: string, hargaSemen: bigint | null, hargaPekerja: bigint): 
           code: "1",
           uraian: "Beton fc' 20 MPa",
           komponen: [
-            komp({ kategori: "bahan", nama: "Semen Portland komposit 50 kg", satuan: "zak", jumlah: 76.8, harga: hargaSemen, hargaAcuan: 88_000 }),
-            komp({ kategori: "upah", nama: "Pekerja", satuan: "OH", jumlah: 16.5, harga: hargaPekerja, hargaAcuan: 160_000 }),
+            komp({ kategori: "bahan", nama: "Semen Portland komposit 50 kg", satuan: "zak", jumlah: 76.8, harga: hargaSemen }),
+            komp({ kategori: "upah", nama: "Pekerja", satuan: "OH", jumlah: 16.5, harga: hargaPekerja }),
           ],
         }),
         item({
@@ -99,20 +102,43 @@ describe("RAPL siap isi – dua lokasi satu paket", () => {
     expect(wb.worksheets.map((w) => w.name)).toEqual(["Rekapitulasi", "Isi Harga", "Rincian Iyok", "Rincian Jiko"]);
   });
 
-  it("Isi Harga: harga lokasi yang SAMA terisi; yang BERBEDA dikosongkan dengan catatan; acuan di sebelahnya", async () => {
+  it("Isi Harga: harga lokasi yang SAMA terisi; yang BERBEDA dikosongkan dengan catatan", async () => {
     const wb = await baca([lokasi("Iyok", 92_000n, 160_000n), lokasi("Jiko", 95_000n, 160_000n)]);
     const h = wb.getWorksheet("Isi Harga")!;
     const pekerja = cariBaris(h, 3, "Pekerja");
     expect(h.getCell(pekerja, 7).value).toBe(160_000);
-    expect(h.getCell(pekerja, 6).value).toBe(160_000);
+    expect(h.getCell(pekerja, 6).value).toBeNull();
     const semen = cariBaris(h, 3, "Semen Portland komposit 50 kg");
     expect(h.getCell(semen, 7).value).toBeNull();
     expect(String(h.getCell(semen, 9).value)).toContain("Harga lokasi berbeda: Iyok Rp92.000; Jiko Rp95.000");
-    expect(h.getCell(semen, 6).value).toBe(88_000);
     // Volume & jumlah = SUMIFS kode ke setiap sheet Rincian.
     expect(rumus(h.getCell(semen, 5))).toBe(
       `SUMIFS('Rincian Iyok'!$D:$D,'Rincian Iyok'!$A:$A,$A${semen})+SUMIFS('Rincian Jiko'!$D:$D,'Rincian Jiko'!$A:$A,$A${semen})`,
     );
+  });
+
+  it("usulan harga per lokasi: hanya untuk yang belum berharga, sama → di Isi Harga, beda → disebut; tiap Rincian memuat usulan lokasinya", async () => {
+    const wb = await baca([
+      lokasi("Iyok", null, 160_000n, [[SEMEN, 90_000n], [BATU, 1n]]),
+      lokasi("Jiko", null, 160_000n, [[SEMEN, 97_000n]]),
+    ]);
+    const h = wb.getWorksheet("Isi Harga")!;
+    expect(String(h.getCell(6, 6).value)).toBe("Usulan harga (belum disetujui)");
+    const semen = cariBaris(h, 3, "Semen Portland komposit 50 kg");
+    expect(h.getCell(semen, 6).value).toBeNull();
+    expect(h.getCell(semen, 7).value).toBeNull();
+    expect(String(h.getCell(semen, 9).value)).toContain("Usulan berbeda per lokasi: Iyok Rp90.000; Jiko Rp97.000");
+    // Batu belah sudah berharga dari analisa kontrak: usulan tidak ditampilkan.
+    expect(h.getCell(cariBaris(h, 3, "Batu belah"), 6).value).toBeNull();
+    const ri = wb.getWorksheet("Rincian Iyok")!;
+    const rj = wb.getWorksheet("Rincian Jiko")!;
+    expect(ri.getCell(cariBaris(ri, 2, "Semen Portland komposit 50 kg"), 9).value).toBe(90_000);
+    expect(rj.getCell(cariBaris(rj, 2, "Semen Portland komposit 50 kg"), 9).value).toBe(97_000);
+    expect(ri.getCell(cariBaris(ri, 2, "Batu belah"), 9).value).toBeNull();
+
+    const satu = await baca([lokasi("Iyok", null, 160_000n, [[SEMEN, 90_000n]])]);
+    const h1 = satu.getWorksheet("Isi Harga")!;
+    expect(h1.getCell(cariBaris(h1, 3, "Semen Portland komposit 50 kg"), 6).value).toBe(90_000);
   });
 
   it("Rincian: harga komponen merujuk Isi Harga; harga analisa kontrak tertulis angkanya", async () => {
@@ -141,16 +167,18 @@ describe("RAPL siap isi – dua lokasi satu paket", () => {
     expect((r.getCell(khusus + 1, 5).fill as ExcelJS.FillPattern).fgColor?.argb).toBe("FFFFF2CC");
   });
 
-  it("biaya di luar item RAB & tak terduga: volume/harga kuning, acuan rujukan, tak terduga 1,5%", async () => {
+  it("biaya di luar item RAB & tak terduga: volume dari data lokasi, harga dan persen KOSONG untuk diisi", async () => {
     const wb = await baca([lokasi("Iyok", 92_000n, 160_000n)]);
     const r = wb.getWorksheet("Rincian")!;
     const gaji = cariBaris(r, 2, "Gaji manajer lapangan (site manager)");
     expect(r.getCell(gaji, 4).value).toBe(3.5);
     expect(r.getCell(gaji, 5).value).toBeNull();
-    expect(r.getCell(gaji, 9).value).toBe(14_000_000);
+    expect(r.getCell(gaji, 9).value).toBeNull();
     const tak = cariBaris(r, 2, "Cadangan biaya tak terduga");
-    expect(r.getCell(tak, 4).value).toBe(0.015);
+    expect(r.getCell(tak, 4).value).toBeNull();
     expect(r.getCell(tak, 7).value).toBe("Tak terduga");
+    // Harga bahan = harga sampai di lokasi: tidak ada baris angkutan material terpisah.
+    expect(() => cariBaris(r, 2, "Angkutan dan bongkar muat material ke lokasi (paket)")).toThrow();
     const uji = cariBaris(r, 2, "Uji kuat tekan beton (benda uji silinder)");
     expect(r.getCell(uji, 4).value).toBe(6); // 3 × maks(2, ⌈10/15⌉)
   });

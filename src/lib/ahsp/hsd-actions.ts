@@ -209,6 +209,9 @@ export async function mintaUsulanHargaAiAction(args: {
 
     const { siapkanTargetHarga } = await import("./hsd-ai");
     const dipilih = d.dipilih && d.dipilih.length > 0 ? new Set(d.dipilih) : undefined;
+    // Tanpa centang = ESTIMASI SEMUA harga yang masih kosong, berputar per 25
+    // sampai habis (DECISIONS 805). Dengan centang = hanya yang dicentang.
+    const semua = !dipilih;
     const siap = await siapkanTargetHarga(d.locationId, dipilih);
     if ("error" in siap) return { ok: false, error: siap.error };
 
@@ -233,7 +236,7 @@ export async function mintaUsulanHargaAiAction(args: {
         locationId: d.locationId,
         status: "menunggu",
         pendingSince: penanda,
-        diminta: siap.target.length,
+        diminta: semua ? siap.totalKosong : siap.target.length,
         totalKosong: siap.totalKosong,
         requestedById: user.id,
       },
@@ -244,6 +247,7 @@ export async function mintaUsulanHargaAiAction(args: {
       diminta: siap.target.length,
       totalKosong: siap.totalKosong,
       dicentangPengguna: dipilih ? dipilih.size : 0,
+      semua,
     });
 
     const { mulaiUsulanHargaLatar } = await import("./hsd-ai-latar");
@@ -252,10 +256,11 @@ export async function mintaUsulanHargaAiAction(args: {
       penanda,
       locationId: d.locationId,
       dipilih: d.dipilih,
+      semua,
     });
 
     revalidatePath(`/lokasi/${d.slug}/rapl`);
-    return { ok: true, runId: run.id, diminta: siap.target.length, totalKosong: siap.totalKosong };
+    return { ok: true, runId: run.id, diminta: semua ? siap.totalKosong : siap.target.length, totalKosong: siap.totalKosong };
   } catch (err) {
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
     return { ok: false, error: err instanceof Error ? err.message : "Gagal meminta usulan harga AI." };
@@ -265,8 +270,8 @@ export async function mintaUsulanHargaAiAction(args: {
 const putusanSkema = z.object({
   locationId: z.uuid(),
   slug: z.string().min(1).max(200),
-  /** ID baris `HsdUsulanAi` — BUKAN angka harganya. */
-  ids: z.array(z.uuid()).min(1).max(200),
+  /** ID baris `HsdUsulanAi` — BUKAN angka harganya. Sampai 2.000: "Pakai semua usulan" (DECISIONS 805). */
+  ids: z.array(z.uuid()).min(1).max(2000),
 });
 
 /**
@@ -361,7 +366,8 @@ export async function terapkanUsulanHargaAiAction(args: {
         },
         ip,
       );
-    });
+      // "Pakai semua usulan" bisa ratusan baris sekali jalan (DECISIONS 805).
+    }, { timeout: 60_000 });
     revalidatePath(`/lokasi/${d.slug}/rapl`);
 
     const sesudah = await keadaanHarga(d.locationId);
@@ -391,91 +397,6 @@ export async function terapkanUsulanHargaAiAction(args: {
   } catch (err) {
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
     return { ok: false, error: err instanceof Error ? err.message : "Gagal menerapkan usulan harga AI." };
-  }
-}
-
-/* ---------------------------------------------- HARGA ACUAN TEMPLAT RAPL */
-
-const SUMBER_ACUAN_KATALOG = "Harga acuan templat RAPL (estimasi pasar Sulut Nov 2026) – disetujui pengguna";
-const SUMBER_ACUAN_RAB = "Perkiraan dari harga satuan RAB – disetujui pengguna";
-
-const acuanSkema = z.object({
-  locationId: z.uuid(),
-  slug: z.string().min(1).max(200),
-  kunci: z.array(z.string().min(1).max(700)).max(2000),
-});
-
-/**
- * PAKAI harga acuan templat sebagai harga lokasi (DECISIONS 804).
- *
- * Acuan hanya rujukan (802) sampai orang memilih memakainya – di sinilah
- * pilihan itu. Pola pengamannya sama dengan draf AI (RAPL-06):
- *  - peramban mengirim KUNCI sumber daya, bukan angka; harganya dibaca ulang
- *    dari templat di server;
- *  - hanya sumber daya yang BELUM berharga yang diisi – harga yang diketik
- *    orang atau dari analisa kontrak tidak pernah ditimpa;
- *  - sumber harganya menyebut asalnya, jadi tidak terbaca sebagai survei.
- * `kunci` kosong = semua yang belum berharga dan punya acuan.
- */
-export async function pakaiHargaAcuanAction(args: {
-  locationId: string;
-  slug: string;
-  kunci: string[];
-}): Promise<{ ok: true; tersimpan: number } | { ok: false; error: string }> {
-  const parsed = acuanSkema.safeParse(args);
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
-  const d = parsed.data;
-
-  try {
-    const user = await requireCapability("rapl.manage");
-    await requireLocationAccess(user, d.locationId);
-
-    const { keadaanHarga } = await import("./hsd");
-    const keadaan = await keadaanHarga(d.locationId);
-    const dipilih = new Set(d.kunci);
-    const dipakai = keadaan.baris.filter(
-      (b) =>
-        b.harga === null &&
-        b.hargaAcuan != null &&
-        b.hargaAcuan > 0 &&
-        (dipilih.size === 0 || dipilih.has(kunciSumberDaya(b.kategori, b.nama, b.satuan))),
-    );
-    if (dipakai.length === 0) {
-      return { ok: false, error: "Tidak ada sumber daya kosong yang punya harga acuan. Mungkin semuanya sudah berharga." };
-    }
-
-    const ip = await requestIp();
-    await db.$transaction(async (tx) => {
-      for (const b of dipakai) {
-        const harga = BigInt(Math.round(b.hargaAcuan!));
-        const sumber = b.asalAcuan === "rab" ? SUMBER_ACUAN_RAB : SUMBER_ACUAN_KATALOG;
-        await tx.hargaSatuanDasar.upsert({
-          where: {
-            locationId_kategori_nama_satuan: { locationId: d.locationId, kategori: b.kategori, nama: b.nama, satuan: b.satuan },
-          },
-          create: { locationId: d.locationId, kategori: b.kategori, nama: b.nama, satuan: b.satuan, harga, sumber, updatedById: user.id },
-          update: { harga, sumber, updatedById: user.id },
-        });
-      }
-      await auditIn(
-        tx,
-        user.id,
-        "rapl.harga_acuan.pakai",
-        "location",
-        d.locationId,
-        {
-          jumlah: dipakai.length,
-          dipilih: d.kunci.length,
-          harga: dipakai.map((b) => ({ kunci: kunciSumberDaya(b.kategori, b.nama, b.satuan), harga: Math.round(b.hargaAcuan!), asal: b.asalAcuan })),
-        },
-        ip,
-      );
-    }, { timeout: 30_000 });
-    revalidatePath(`/lokasi/${d.slug}/rapl`);
-    return { ok: true, tersimpan: dipakai.length };
-  } catch (err) {
-    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
-    return { ok: false, error: err instanceof Error ? err.message : "Gagal memakai harga acuan." };
   }
 }
 

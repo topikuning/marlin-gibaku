@@ -1,12 +1,13 @@
 // TEMPLAT RAPL SEBAGAI SUMBER KEEMPAT (DECISIONS 802).
 //
 // Keputusan user 2026-11-28: rincian dari templat referensi dipakai LANGSUNG
-// (sekali klik), selalu ditandai "templat"; harga di Excel kosong kecuali
-// harga yang sudah disetujui, harga acuan di kolom sebelahnya. Yang dijaga:
+// (sekali klik), selalu ditandai "templat". Koreksi user di hari yang sama
+// (DECISIONS 805): harga prototipe referensi BUKAN acuan – templat tidak
+// membawa harga sama sekali. Yang dijaga:
 //  - item tanpa analisa kontrak/AHSP disetujui/AI diterima diurai templat,
 //    koefisien per satuan item (kebutuhan = volume × koefisien);
-//  - harga acuan dan perkiraan dari RAB hanya RUJUKAN: tidak masuk biaya;
-//    harga yang diisi untuk lokasi (HSD) yang dipakai;
+//  - tidak ada harga yang terbawa dari templat; biaya hanya dari harga yang
+//    diisi untuk lokasi (HSD);
 //  - judul kelompok di atas item ikut menentukan ("Pengadaan barang" di bawah
 //    tiang menara toren).
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -68,16 +69,16 @@ afterAll(async () => {
 });
 
 describe("templat RAPL sebagai sumber keempat", () => {
-  it("beton tanpa analisa lain: diurai templat beton20, kategori MARLIN, acuan katalog sebagai rujukan", async () => {
+  it("beton tanpa analisa lain: diurai templat beton20, kategori MARLIN, tanpa harga bawaan", async () => {
     const items = await itemUntukRapl(lokasiId);
     const beton = items.find((i) => i.lineageKey === "I#1")!;
     expect(beton.analisa).toMatchObject({ sumber: "templat", templat: "beton20", satuanNorm: beton.satuanNorm });
     const semen = beton.analisa!.komponen.find((k) => k.nama === "Semen Portland komposit 50 kg")!;
-    expect(semen).toMatchObject({ kategori: "bahan", satuan: "zak", koefisien: 7.68, hargaAcuan: 88_000 });
+    expect(semen).toEqual({ kategori: "bahan", nama: "Semen Portland komposit 50 kg", satuan: "zak", koefisien: 7.68 });
     expect(new Set(beton.analisa!.komponen.map((k) => k.kategori))).toEqual(new Set(["bahan", "alat", "upah"]));
   });
 
-  it("biaya hanya dari harga lokasi: semen 76,8 zak × Rp90.000; komponen lain belum berharga walau punya acuan", async () => {
+  it("biaya hanya dari harga lokasi: semen 76,8 zak × Rp90.000; komponen lain belum berharga", async () => {
     const per = await keadaanItemRapl(lokasiId);
     const beton = per.item.find((i) => i.lineageKey === "I#1")!;
     expect(beton.sumberAnalisa).toBe("templat");
@@ -91,12 +92,12 @@ describe("templat RAPL sebagai sumber keempat", () => {
     expect(beton.lengkap).toBe(false);
   });
 
-  it("barang jadi tak dikenal: satu baris pengadaan, perkiraan 82% harga satuan RAB sebagai rujukan", async () => {
+  it("barang jadi tak dikenal: satu baris pengadaan, tanpa harga bawaan", async () => {
     const items = await itemUntukRapl(lokasiId);
     const mesin = items.find((i) => i.lineageKey === "I#2")!;
     expect(mesin.analisa).toMatchObject({ sumber: "templat", templat: "GEN" });
     expect(mesin.analisa!.komponen).toEqual([
-      expect.objectContaining({ kategori: "bahan", nama: "Mesin pembuat es balok 5 ton", koefisien: 1, hargaAcuan: 82_000_000 }),
+      { kategori: "bahan", nama: "Mesin pembuat es balok 5 ton", satuan: "unit", koefisien: 1 },
     ]);
   });
 

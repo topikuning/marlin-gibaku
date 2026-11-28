@@ -182,33 +182,27 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
  * persetujuan per uraian, supaya RAPL jadi sekali klik. Selalu bersumber
  * `templat` di layar dan Excel.
  *
- * Koefisiennya per satuan item, jadi satuannya sepadan dengan item. Harga
- * acuan dan perkiraan dari harga satuan RAB hanya RUJUKAN (`hargaAcuan`) –
- * tidak pernah dipakai menghitung biaya.
+ * Koefisiennya per satuan item, jadi satuannya sepadan dengan item. Templat
+ * TIDAK membawa harga (DECISIONS 805): harga di prototipe referensi adalah
+ * contoh proyek lain. Harga ditentukan per lokasi.
  */
 function analisaTemplat(
   it: { name: string; unit: string | null; volume: number | null; amount: bigint },
   induk: string,
 ): NonNullable<ItemUntukRapl["analisa"]> {
   const h = uraiItem({ uraian: it.name, satuan: it.unit ?? "", induk });
-  const hargaSatuanRab = it.volume && it.volume > 0 ? Number(it.amount) / it.volume : null;
   return {
     sumber: "templat",
     templat: h.templat,
     kode: `Templat ${h.templat}`,
     uraian: it.name,
     satuanNorm: normalisasiSatuan(it.unit),
-    komponen: h.komponen.map((k) => {
-      const dariRab = k.hargaAcuan == null && k.faktorHargaRab != null && hargaSatuanRab != null;
-      return {
-        kategori: kategoriRaplMarlin(k.kategori),
-        nama: k.nama,
-        satuan: k.satuan,
-        koefisien: k.koefisien,
-        hargaAcuan: k.hargaAcuan ?? (dariRab ? Math.round(hargaSatuanRab! * k.faktorHargaRab!) : null),
-        asalAcuan: dariRab ? ("rab" as const) : ("katalog" as const),
-      };
-    }),
+    komponen: h.komponen.map((k) => ({
+      kategori: kategoriRaplMarlin(k.kategori),
+      nama: k.nama,
+      satuan: k.satuan,
+      koefisien: k.koefisien,
+    })),
   };
 }
 

@@ -3,16 +3,16 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { CellValueChangedEvent } from "ag-grid-community";
-import { BookCheck, Check, Loader2, Sparkles, X } from "lucide-react";
+import { Check, Loader2, Sparkles, X } from "lucide-react";
 import { Banner, Button } from "@/components/ui";
 import { MarlinGrid, type MarlinGridApi } from "@/components/grid/marlin-grid";
 import { cn } from "@/lib/cn";
 import { formatPct, formatRupiah, formatRupiahShort } from "@/lib/format";
 import { perluTarikUlang, type RingkasUsulanAi } from "@/lib/ahsp/usulan-status";
+import { BATAS_USULAN_HARGA_AI } from "@/lib/ahsp/usulan-target";
 import { kolomHarga, LABEL_KATEGORI, type Baris, type BarisHargaRow } from "./harga-kolom";
 import {
   mintaUsulanHargaAiAction,
-  pakaiHargaAcuanAction,
   simpanHargaSel,
   statusUsulanHargaAiAction,
   terapkanUsulanHargaAiAction,
@@ -191,7 +191,6 @@ export function HargaPanel({
           rekomendasiTeks: r.rekomendasi
             .map((k) => `${formatRupiahShort(BigInt(k.harga))} · ${k.lokasi}${k.seKabupaten ? " (sekab.)" : ""}`)
             .join("  |  "),
-          hargaAcuanNum: r.hargaAcuan,
           usulanId: d?.id ?? null,
           usulanAiNum: d ? Number(d.harga) : null,
           keyakinanAi: d?.keyakinan ?? "",
@@ -212,48 +211,11 @@ export function HargaPanel({
     [adaDraf, hanyaUsulan, baris],
   );
 
-  const adaAcuan = rows.some((r) => r.hargaAcuan !== null);
-  const kolom = useMemo(() => kolomHarga({ canInput, adaDraf, adaAcuan }), [canInput, adaDraf, adaAcuan]);
+  const kolom = useMemo(() => kolomHarga({ canInput, adaDraf }), [canInput, adaDraf]);
 
   const belum = rows.filter((r) => r.harga === null).length;
   const centangBerdraf = dicentang.filter((d) => d.usulanId !== null);
   const centangKosong = dicentang.filter((d) => d.harga === null);
-
-  /*
-   * Harga acuan templat (DECISIONS 804). Yang dicentang lebih dulu; tanpa
-   * centang = semua yang masih kosong. Selalu ditanyakan dulu: ini mengisi
-   * banyak harga sekaligus dari estimasi yang belum disurvei.
-   */
-  const kosongBerAcuan = rows.filter((r) => r.harga === null && r.hargaAcuan !== null);
-  const centangAcuan = centangKosong.filter((d) => d.hargaAcuan !== null);
-  const [acuanPending, mulaiAcuan] = useTransition();
-  const pakaiAcuan = () => {
-    const sasaran = centangAcuan.length > 0 ? centangAcuan : kosongBerAcuan;
-    const katalog = sasaran.filter((r) => r.asalAcuan === "katalog").length;
-    const ok = window.confirm(
-      `${sasaran.length} sumber daya yang belum berharga akan diisi harga acuannya.\n\n` +
-        (katalog > 0
-          ? `${katalog} di antaranya estimasi katalog templat (pasar Sulawesi Utara, November 2026) yang belum disurvei ke pemasok. Untuk lokasi di provinsi lain, harganya bisa jauh berbeda.\n\n`
-          : "") +
-        "Harga yang sudah terisi tidak diubah. Lanjutkan?",
-    );
-    if (!ok) return;
-    setPesan(null);
-    mulaiAcuan(async () => {
-      const hasil = await pakaiHargaAcuanAction({
-        locationId,
-        slug,
-        kunci: centangAcuan.length > 0 ? centangAcuan.map((d) => kunci(d)) : [],
-      });
-      if (!hasil.ok) {
-        setPesan({ tone: "error", teks: hasil.error });
-        return;
-      }
-      lepasCentang();
-      setPesan({ tone: "success", teks: `${hasil.tersimpan} harga acuan dipakai dan masuk kalkulasi RAPL. Asalnya tertulis di kolom Sumber harga, dan tiap angka tetap bisa Anda ubah.` });
-      router.refresh();
-    });
-  };
 
   const putuskan = (
     ids: string[],
@@ -285,8 +247,16 @@ export function HargaPanel({
       {usulan.menunggu ? (
         <Banner
           tone="info"
-          title={`Draf harga sedang disusun – ${detik} detik`}
-          description="Permintaannya sudah tercatat, jadi Anda boleh meninggalkan halaman ini. Hasilnya muncul di sini begitu siap, dan tetap ada saat Anda kembali."
+          title={
+            usulan.diminta > BATAS_USULAN_HARGA_AI
+              ? `Estimasi harga lokasi ini sedang disusun – ${jumlahDraf} dari ${usulan.diminta} sumber daya sudah ada usulannya`
+              : `Draf harga sedang disusun – ${detik} detik`
+          }
+          description={
+            usulan.diminta > BATAS_USULAN_HARGA_AI
+              ? `Dikerjakan ${BATAS_USULAN_HARGA_AI} sumber daya sekali jalan, jadi bisa beberapa menit. Anda boleh meninggalkan halaman ini; usulan yang sudah jadi tetap tersimpan dan bisa langsung dipakai.`
+              : "Permintaannya sudah tercatat, jadi Anda boleh meninggalkan halaman ini. Hasilnya muncul di sini begitu siap, dan tetap ada saat Anda kembali."
+          }
         />
       ) : null}
 
@@ -321,21 +291,6 @@ export function HargaPanel({
           </p>
         ) : null}
 
-        {canInput && kosongBerAcuan.length > 0 ? (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            loading={acuanPending}
-            onClick={pakaiAcuan}
-          >
-            <BookCheck aria-hidden className="size-3.5" />
-            {centangAcuan.length > 0
-              ? `Pakai harga acuan (${centangAcuan.length} dicentang)`
-              : `Pakai harga acuan (${kosongBerAcuan.length})`}
-          </Button>
-        ) : null}
-
         {canInput && canUseAi && belum > 0 ? (
           <Button
             type="button"
@@ -355,11 +310,10 @@ export function HargaPanel({
                 lepasCentang();
                 setPesan({
                   tone: "success",
-                  teks: `Permintaan ${hasil.diminta} draf harga tercatat${
-                    hasil.totalKosong > hasil.diminta
-                      ? ` – ${hasil.totalKosong - hasil.diminta} sumber daya lain belum ikut dimintakan`
-                      : ""
-                  }.`,
+                  teks:
+                    dipilih.length === 0
+                      ? `Estimasi ${hasil.diminta} harga untuk lokasi ini dimulai. Usulannya muncul bertahap.`
+                      : `Permintaan ${hasil.diminta} draf harga tercatat.`,
                 });
                 router.refresh();
               });
@@ -367,8 +321,10 @@ export function HargaPanel({
           >
             <Sparkles aria-hidden className="size-3.5" />
             {centangKosong.length > 0
-              ? `Minta estimasi AI (${centangKosong.length} dicentang)`
-              : "Minta estimasi AI"}
+              ? `Estimasi ${centangKosong.length} yang dicentang`
+              : adaDraf
+                ? `Estimasi ulang semua (${belum})`
+                : `Estimasi semua harga (${belum})`}
           </Button>
         ) : null}
 
@@ -378,16 +334,24 @@ export function HargaPanel({
               type="button"
               size="sm"
               loading={putusanPending}
-              disabled={centangBerdraf.length === 0}
-              onClick={() =>
-                putuskan(
-                  centangBerdraf.map((d) => d.usulanId as string),
-                  terapkanUsulanHargaAiAction,
-                )
-              }
+              onClick={() => {
+                if (centangBerdraf.length > 0) {
+                  putuskan(centangBerdraf.map((d) => d.usulanId as string), terapkanUsulanHargaAiAction);
+                  return;
+                }
+                // Tanpa centang = semua usulan (DECISIONS 805). Selalu ditanya:
+                // ini mengisi banyak harga sekaligus dari estimasi.
+                const ok = window.confirm(
+                  `${usulan.draf.length} usulan harga akan dipakai sebagai harga lokasi ini.\n\n` +
+                    "Usulan adalah estimasi, bukan survei pasar atau penawaran pemasok. Harga yang sudah terisi tidak diubah, dan tiap angka tetap bisa Anda ubah sesudahnya. Lanjutkan?",
+                );
+                if (ok) putuskan(usulan.draf.map((d) => d.id), terapkanUsulanHargaAiAction);
+              }}
             >
               <Check aria-hidden className="size-3.5" />
-              Pakai {centangBerdraf.length} yang dicentang
+              {centangBerdraf.length > 0
+                ? `Pakai ${centangBerdraf.length} yang dicentang`
+                : `Pakai semua usulan (${usulan.draf.length})`}
             </Button>
             <Button
               type="button"
@@ -414,9 +378,9 @@ export function HargaPanel({
           tone="warning"
           title={`${usulan.draf.length} draf ${usulan.model ?? "AI"} menunggu keputusan Anda. Belum tersimpan.`}
           description={
-            `Periksa kolom Usulan AI, Keyakinan, dan Dasar usulan, lalu centang yang Anda setujui. ` +
+            `Periksa kolom Usulan AI, Keyakinan, dan Dasar usulan. Centang yang Anda setujui, atau pakai semuanya sekaligus. ` +
             `Angka ini bukan survei pasar atau penawaran pemasok. ` +
-            (usulan.totalKosong > usulan.diminta
+            (!usulan.menunggu && usulan.totalKosong > usulan.diminta
               ? `Permintaan lalu mencakup ${usulan.diminta} dari ${usulan.totalKosong} sumber daya yang belum ada harganya. Yang nilai RAB-nya terbesar didahulukan.`
               : "")
           }

@@ -40,22 +40,7 @@ export type KomponenUntukRapl = {
    * menulis harga "Pekerja" berbeda di analisa yang berbeda.
    */
   hargaKontrak?: number | null;
-  /**
-   * Harga RUJUKAN dari templat RAPL (DECISIONS 801/802): estimasi katalog
-   * atau perkiraan dari harga satuan RAB. TIDAK PERNAH dipakai menghitung
-   * biaya – hanya ditampilkan di samping kolom harga supaya orang bisa
-   * menyalinnya bila setuju.
-   */
-  hargaAcuan?: number | null;
-  /**
-   * Asal `hargaAcuan` (DECISIONS 804): `katalog` = estimasi katalog templat
-   * referensi (pasar Sulut Nov 2026, belum survei); `rab` = perkiraan dari
-   * harga satuan RAB item itu × faktor templat.
-   */
-  asalAcuan?: AsalAcuan;
 };
-
-export type AsalAcuan = "katalog" | "rab";
 
 /**
  * Rincian pelaksanaan satu item RAB yang disusun ORANG — AHSP jadi pembantu,
@@ -159,13 +144,6 @@ export type Kebutuhan = {
    * Ditandai, BUKAN dipindahkan diam-diam — lihat catatan di `SATUAN_UPAH`.
    */
   janggal: boolean;
-  /**
-   * Harga acuan templat untuk sumber daya ini – RUJUKAN, bukan harga
-   * (DECISIONS 804). null bila tidak ada, atau bila komponen-komponennya
-   * membawa acuan yang BERBEDA: memilihkan salah satunya bukan urusan mesin.
-   */
-  hargaAcuan?: number | null;
-  asalAcuan?: AsalAcuan | null;
 };
 
 /**
@@ -364,25 +342,6 @@ export function agregasiKebutuhan(items: ItemUntukRapl[]): HasilRapl {
   let barisDipakai = 0;
   let nilaiDipakai = 0n;
 
-  /*
-   * Acuan per sumber daya (DECISIONS 804). Komponen TANPA acuan (analisa
-   * kontrak, AHSP) tidak dihitung: "Pekerja" dari analisa kontrak tidak boleh
-   * menghapus acuan "Pekerja" dari templat. Dua acuan yang berbeda = tidak ada.
-   */
-  const acuan = new Map<string, { harga: number; asal: AsalAcuan } | "berbeda">();
-  const kunciKomponen = (k: KomponenUntukRapl) => {
-    const satuan = (k.satuan ?? "").trim();
-    return { satuan, kunci: JSON.stringify([k.kategori, k.nama, satuan.toLowerCase()]) };
-  };
-  const catatAcuan = (k: KomponenUntukRapl) => {
-    if (k.hargaAcuan == null || !(k.hargaAcuan > 0)) return;
-    const { kunci } = kunciKomponen(k);
-    const ada = acuan.get(kunci);
-    const asal = k.asalAcuan ?? "katalog";
-    if (ada === undefined) acuan.set(kunci, { harga: k.hargaAcuan, asal });
-    else if (ada !== "berbeda" && (ada.harga !== k.hargaAcuan || ada.asal !== asal)) acuan.set(kunci, "berbeda");
-  };
-
   for (const it of items) {
     const pecah = pecahItem(it);
     if (!pecah.ok) {
@@ -409,11 +368,11 @@ export function agregasiKebutuhan(items: ItemUntukRapl[]): HasilRapl {
      */
     const sudahDariItemIni = new Set<string>();
     for (const { komponen: k, jumlah: tambah } of pecah.komponen) {
-      catatAcuan(k);
       // Besar-kecil huruf satuan ("Kg" vs "kg") cuma cara mengetik — kalau ikut
       // jadi kunci, satu bahan yang sama pecah jadi dua baris berjumlah separuh
       // dan pembacanya menyimpulkan kebutuhannya lebih kecil dari yang sebenarnya.
-      const { satuan, kunci } = kunciKomponen(k);
+      const satuan = (k.satuan ?? "").trim();
+      const kunci = JSON.stringify([k.kategori, k.nama, satuan.toLowerCase()]);
       const ada = peta.get(kunci);
       const baruDariItemIni = !sudahDariItemIni.has(kunci);
       sudahDariItemIni.add(kunci);
@@ -435,17 +394,8 @@ export function agregasiKebutuhan(items: ItemUntukRapl[]): HasilRapl {
     }
   }
 
-  const kebutuhan = [...peta.entries()]
-    .map(([kunci, k]) => {
-      const a = acuan.get(kunci);
-      const pasti = a !== undefined && a !== "berbeda" ? a : null;
-      return {
-        ...k,
-        jumlah: Math.round(k.jumlah * SKALA) / SKALA,
-        hargaAcuan: pasti?.harga ?? null,
-        asalAcuan: pasti?.asal ?? null,
-      };
-    })
+  const kebutuhan = [...peta.values()]
+    .map((k) => ({ ...k, jumlah: Math.round(k.jumlah * SKALA) / SKALA }))
     // Nama sumber daya TIDAK disatukan antar ejaan yang berbeda ("Semen PC" vs
     // "Semen Portland"): menggabungkannya butuh keputusan yang tidak boleh
     // diambil diam-diam oleh pengurut daftar.
@@ -635,8 +585,6 @@ export type KomponenItem = {
   hargaDariKontrak: boolean;
   /** null selama harganya belum diisi — BUKAN nol. */
   biaya: bigint | null;
-  /** Harga rujukan templat (DECISIONS 802) – dibawa apa adanya, tidak pernah masuk `biaya`. */
-  hargaAcuan: number | null;
 };
 
 /** Bagaimana biaya item ini disusun. */
@@ -765,7 +713,6 @@ export function hitungItemRapl(items: ItemUntukRapl[], harga: HargaSatuan[]): Bi
         harga: h,
         hargaDariKontrak: hLokasi === null && hKontrak !== null,
         biaya: h === null ? null : BigInt(Math.round(jumlah * Number(h))),
-        hargaAcuan: c.komponen.hargaAcuan ?? null,
       };
     });
 

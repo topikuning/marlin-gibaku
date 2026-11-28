@@ -4,8 +4,12 @@
 // Pembanding emasnya keluaran prototipe itu sendiri: lembar "Rincian" dari
 // `contoh-keluaran-RAPL-6-lokasi.xlsx` – 376 uraian unik dari enam RAB MC0
 // Bolaang Mongondow Timur, 1.818 komponen (nama, satuan, kategori, koefisien
-// per satuan item, harga acuan). Uraian di berkas itu sudah dirapikan (tanpa
-// "Pekerjaan" di depan), jadi tiap uraian dicoba juga dengan awalan aslinya.
+// per satuan item). Uraian di berkas itu sudah dirapikan (tanpa "Pekerjaan" di
+// depan), jadi tiap uraian dicoba juga dengan awalan aslinya.
+//
+// HARGA TIDAK IKUT (koreksi user 2026-11-28, DECISIONS 805): harga prototipe
+// adalah contoh proyek lain. Mesin hanya mengurai item; uji terakhir di bawah
+// menjaga supaya tidak ada satu pun angka harga yang terbawa.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
@@ -16,7 +20,7 @@ import {
 } from "@/lib/rapl-templat/urai";
 import TEMPLAT from "@/lib/rapl-templat/templat.json";
 
-type KomponenEmas = { nama: string; satuan: string; kategori: string; koefisien: number | null; harga: number | null };
+type KomponenEmas = { nama: string; satuan: string; kategori: string; koefisien: number | null };
 type ItemEmas = { uraian: string; satuan: string; volume: number; komponen: KomponenEmas[] };
 
 const emas = JSON.parse(
@@ -30,7 +34,10 @@ const INDUK: Record<string, string> = {
 };
 
 // En-dash dan em-dash (kode 2013/2014) disamakan dengan tanda hubung: prototipe menggantinya.
-const rapi = (s: string) => s.replace(/[\u2013\u2014]/g, "-").replace(/\s+/g, " ").trim();
+// Merek yang ditulis prototipe pada komponen tempat sampah sengaja tidak
+// dibawa (DECISIONS 805) – mereknya milik RAB proyek itu, bukan templat.
+const rapi = (s: string) =>
+  s.replace(/[\u2013\u2014]/g, "-").replace(/ \(Krisbow\)$/, "").replace(/\s+/g, " ").trim();
 
 function cocokDenganEmas(e: ItemEmas): boolean {
   for (const uraian of [e.uraian, `Pekerjaan ${e.uraian}`]) {
@@ -40,11 +47,10 @@ function cocokDenganEmas(e: ItemEmas): boolean {
       const g = e.komponen.find((x) => rapi(x.nama) === rapi(k.nama) && x.kategori === k.kategori);
       if (!g || g.satuan !== k.satuan || g.koefisien == null) return false;
       // Koefisien emas = jumlah / volume, dengan jumlah dibulatkan 4 desimal.
-      const koefOk =
+      return (
         Math.abs(g.koefisien - k.koefisien) <= Math.max(1e-3, k.koefisien * 2e-3) ||
-        Math.abs(g.koefisien * e.volume - Math.round(k.koefisien * e.volume * 1e4) / 1e4) < 1e-3;
-      const hargaOk = k.hargaAcuan == null || g.harga == null || Math.abs(g.harga - k.hargaAcuan) < 1;
-      return koefOk && hargaOk;
+        Math.abs(g.koefisien * e.volume - Math.round(k.koefisien * e.volume * 1e4) / 1e4) < 1e-3
+      );
     });
     if (semua) return true;
   }
@@ -52,7 +58,7 @@ function cocokDenganEmas(e: ItemEmas): boolean {
 }
 
 describe("templat RAPL vs keluaran prototipe referensi", () => {
-  it("ke-376 uraian terurai sama persis: komponen, satuan, kategori, koefisien, harga acuan", () => {
+  it("ke-376 uraian terurai sama persis: komponen, satuan, kategori, koefisien", () => {
     const beda = emas.filter((e) => !cocokDenganEmas(e)).map((e) => `${e.uraian} (${e.satuan})`);
     expect(emas).toHaveLength(376);
     expect(beda).toEqual([]);
@@ -90,30 +96,45 @@ describe("pilih ukuran dari uraian", () => {
   });
 });
 
-describe("komponen khusus: harga rujukan, bukan harga dipakai", () => {
-  it("barang jadi tak dikenal: satu baris pengadaan, perkiraan 82% harga satuan RAB", () => {
+describe("komponen khusus: satu baris, tanpa harga", () => {
+  it("barang jadi tak dikenal: satu baris pengadaan", () => {
     const h = uraiItem({ uraian: "Mesin pembuat es balok 5 ton", satuan: "unit" });
     expect(h.templat).toBe("GEN");
     expect(h.komponen).toEqual([
-      expect.objectContaining({ kunci: null, kategori: "Bahan", nama: "Mesin pembuat es balok 5 ton", koefisien: 1, faktorHargaRab: 0.82, hargaAcuan: null }),
+      { kunci: null, kategori: "Bahan", kelompok: "Komponen Jadi dan Pengadaan", nama: "Mesin pembuat es balok 5 ton", satuan: "unit", koefisien: 1 },
     ]);
   });
 
-  it("biaya resmi tetap satu baris berharga RAB; sewa alat jadi mobilisasi", () => {
+  it("biaya resmi tetap satu baris; sewa alat jadi mobilisasi", () => {
     expect(uraiItem({ uraian: "BPJS Ketenagakerjaan", satuan: "ls" }).komponen[0]).toMatchObject({
       kategori: "Jasa, Subkon dan Biaya Resmi",
-      faktorHargaRab: 1,
+      koefisien: 1,
     });
     expect(uraiItem({ uraian: "Excavator", satuan: "ls" }).komponen[0]).toMatchObject({
       kategori: "Alat dan Angkutan",
       nama: "Mobilisasi dan demobilisasi excavator",
     });
   });
+});
 
-  it("perlengkapan K3 memakai harga acuan bila dikenal", () => {
-    expect(uraiItem({ uraian: "Sepatu keselamatan", satuan: "psg" }).komponen[0]).toMatchObject({
-      hargaAcuan: 180000,
-      faktorHargaRab: null,
-    });
+describe("tidak ada harga dari prototipe referensi (DECISIONS 805)", () => {
+  const ADA_HARGA = /harga|acuan|faktor/i;
+
+  it("katalog sumber daya dan templat tidak memuat angka harga", () => {
+    for (const s of semuaSumberDaya()) expect(Object.keys(s).filter((k) => ADA_HARGA.test(k))).toEqual([]);
+  });
+
+  it("komponen hasil urai hanya kunci, kategori, kelompok, nama, satuan, koefisien – untuk semua jenis templat", () => {
+    const contoh = [
+      ...emas.map((e) => ({ uraian: e.uraian, satuan: e.satuan, induk: INDUK[e.uraian] })),
+      { uraian: "Sepatu keselamatan", satuan: "psg" },
+      { uraian: "Tempat sampah portable", satuan: "unit" },
+      { uraian: "Pengiriman bahan", satuan: "ls" },
+      { uraian: "BPJS Ketenagakerjaan", satuan: "ls" },
+      { uraian: "Mesin pembuat es balok 5 ton", satuan: "unit" },
+    ];
+    for (const c of contoh)
+      for (const k of uraiItem(c).komponen)
+        expect(Object.keys(k).sort()).toEqual(["kategori", "kelompok", "koefisien", "kunci", "nama", "satuan"]);
   });
 });
