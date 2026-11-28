@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { CellValueChangedEvent } from "ag-grid-community";
-import { Check, Loader2, Sparkles, X } from "lucide-react";
+import { BookCheck, Check, Loader2, Sparkles, X } from "lucide-react";
 import { Banner, Button } from "@/components/ui";
 import { MarlinGrid, type MarlinGridApi } from "@/components/grid/marlin-grid";
 import { cn } from "@/lib/cn";
@@ -12,6 +12,7 @@ import { perluTarikUlang, type RingkasUsulanAi } from "@/lib/ahsp/usulan-status"
 import { kolomHarga, LABEL_KATEGORI, type Baris, type BarisHargaRow } from "./harga-kolom";
 import {
   mintaUsulanHargaAiAction,
+  pakaiHargaAcuanAction,
   simpanHargaSel,
   statusUsulanHargaAiAction,
   terapkanUsulanHargaAiAction,
@@ -190,6 +191,7 @@ export function HargaPanel({
           rekomendasiTeks: r.rekomendasi
             .map((k) => `${formatRupiahShort(BigInt(k.harga))} · ${k.lokasi}${k.seKabupaten ? " (sekab.)" : ""}`)
             .join("  |  "),
+          hargaAcuanNum: r.hargaAcuan,
           usulanId: d?.id ?? null,
           usulanAiNum: d ? Number(d.harga) : null,
           keyakinanAi: d?.keyakinan ?? "",
@@ -210,11 +212,48 @@ export function HargaPanel({
     [adaDraf, hanyaUsulan, baris],
   );
 
-  const kolom = useMemo(() => kolomHarga({ canInput, adaDraf }), [canInput, adaDraf]);
+  const adaAcuan = rows.some((r) => r.hargaAcuan !== null);
+  const kolom = useMemo(() => kolomHarga({ canInput, adaDraf, adaAcuan }), [canInput, adaDraf, adaAcuan]);
 
   const belum = rows.filter((r) => r.harga === null).length;
   const centangBerdraf = dicentang.filter((d) => d.usulanId !== null);
   const centangKosong = dicentang.filter((d) => d.harga === null);
+
+  /*
+   * Harga acuan templat (DECISIONS 804). Yang dicentang lebih dulu; tanpa
+   * centang = semua yang masih kosong. Selalu ditanyakan dulu: ini mengisi
+   * banyak harga sekaligus dari estimasi yang belum disurvei.
+   */
+  const kosongBerAcuan = rows.filter((r) => r.harga === null && r.hargaAcuan !== null);
+  const centangAcuan = centangKosong.filter((d) => d.hargaAcuan !== null);
+  const [acuanPending, mulaiAcuan] = useTransition();
+  const pakaiAcuan = () => {
+    const sasaran = centangAcuan.length > 0 ? centangAcuan : kosongBerAcuan;
+    const katalog = sasaran.filter((r) => r.asalAcuan === "katalog").length;
+    const ok = window.confirm(
+      `${sasaran.length} sumber daya yang belum berharga akan diisi harga acuannya.\n\n` +
+        (katalog > 0
+          ? `${katalog} di antaranya estimasi katalog templat (pasar Sulawesi Utara, November 2026) yang belum disurvei ke pemasok. Untuk lokasi di provinsi lain, harganya bisa jauh berbeda.\n\n`
+          : "") +
+        "Harga yang sudah terisi tidak diubah. Lanjutkan?",
+    );
+    if (!ok) return;
+    setPesan(null);
+    mulaiAcuan(async () => {
+      const hasil = await pakaiHargaAcuanAction({
+        locationId,
+        slug,
+        kunci: centangAcuan.length > 0 ? centangAcuan.map((d) => kunci(d)) : [],
+      });
+      if (!hasil.ok) {
+        setPesan({ tone: "error", teks: hasil.error });
+        return;
+      }
+      lepasCentang();
+      setPesan({ tone: "success", teks: `${hasil.tersimpan} harga acuan dipakai dan masuk kalkulasi RAPL. Asalnya tertulis di kolom Sumber harga, dan tiap angka tetap bisa Anda ubah.` });
+      router.refresh();
+    });
+  };
 
   const putuskan = (
     ids: string[],
@@ -280,6 +319,21 @@ export function HargaPanel({
             <Loader2 aria-hidden className="size-3.5 animate-spin" />
             Menyimpan {menyimpan} harga…
           </p>
+        ) : null}
+
+        {canInput && kosongBerAcuan.length > 0 ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            loading={acuanPending}
+            onClick={pakaiAcuan}
+          >
+            <BookCheck aria-hidden className="size-3.5" />
+            {centangAcuan.length > 0
+              ? `Pakai harga acuan (${centangAcuan.length} dicentang)`
+              : `Pakai harga acuan (${kosongBerAcuan.length})`}
+          </Button>
         ) : null}
 
         {canInput && canUseAi && belum > 0 ? (

@@ -198,15 +198,17 @@ function analisaTemplat(
     kode: `Templat ${h.templat}`,
     uraian: it.name,
     satuanNorm: normalisasiSatuan(it.unit),
-    komponen: h.komponen.map((k) => ({
-      kategori: kategoriRaplMarlin(k.kategori),
-      nama: k.nama,
-      satuan: k.satuan,
-      koefisien: k.koefisien,
-      hargaAcuan:
-        k.hargaAcuan ??
-        (k.faktorHargaRab != null && hargaSatuanRab != null ? Math.round(hargaSatuanRab * k.faktorHargaRab) : null),
-    })),
+    komponen: h.komponen.map((k) => {
+      const dariRab = k.hargaAcuan == null && k.faktorHargaRab != null && hargaSatuanRab != null;
+      return {
+        kategori: kategoriRaplMarlin(k.kategori),
+        nama: k.nama,
+        satuan: k.satuan,
+        koefisien: k.koefisien,
+        hargaAcuan: k.hargaAcuan ?? (dariRab ? Math.round(hargaSatuanRab! * k.faktorHargaRab!) : null),
+        asalAcuan: dariRab ? ("rab" as const) : ("katalog" as const),
+      };
+    }),
   };
 }
 

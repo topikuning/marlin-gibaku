@@ -215,6 +215,8 @@ export default async function RaplPage({
         kabupaten: r.kabupaten,
         seKabupaten: r.seKabupaten,
       })),
+      hargaAcuan: h.hargaAcuan ?? null,
+      asalAcuan: h.asalAcuan ?? null,
     }));
 
   // Saringan pembuka mengikuti tahap yang sedang aktif — bukan tebakan yang
@@ -513,7 +515,7 @@ export default async function RaplPage({
           <>
             <CardHeader
               title="Kebutuhan proyek & harga satuan"
-              subtitle={`${harga.baris.length} komponen dari RAB aktif · isi harga sendiri, atau minta draf perkiraan AI untuk harga yang masih kosong.`}
+              subtitle={`${harga.baris.length} komponen dari RAB aktif · isi harga sendiri, pakai harga acuan templat, atau minta draf perkiraan AI untuk harga yang masih kosong.`}
               action={
                 // Unduhannya memuat kolom margin – ikut `rapl.view`, bukan hanya export.
                 canExport && canSeeMargin ? (
@@ -526,11 +528,14 @@ export default async function RaplPage({
             />
             <CardBody className="space-y-4">
               {ringkasanBiaya}
-              <Kenapa judul="Bagaimana harga manual, AI, dan rekomendasi dipakai?">
-                Harga yang Anda isi langsung tersimpan sebagai HSD lokasi. AI hanya membuat draf untuk
-                komponen yang kosong. Drafnya tersimpan di server, jadi tidak hilang saat Anda pindah
-                tab, dan baru masuk hitungan setelah Anda mencentangnya lalu menekan Pakai. Harga dari
-                lokasi lain juga hanya referensi. Semua sumber harga terlihat di tabel.
+              <Kenapa judul="Bagaimana harga manual, acuan, AI, dan rekomendasi dipakai?">
+                Harga yang Anda isi langsung tersimpan sebagai HSD lokasi. Kolom Harga acuan berasal
+                dari templat RAPL: estimasi katalog pasar Sulawesi Utara November 2026 yang belum
+                disurvei, atau perkiraan dari harga satuan RAB. Acuan baru masuk hitungan setelah Anda
+                menekan Pakai harga acuan, dan hanya mengisi yang masih kosong. AI hanya membuat draf
+                untuk komponen yang kosong. Drafnya tersimpan di server, jadi tidak hilang saat Anda
+                pindah tab, dan baru masuk hitungan setelah Anda mencentangnya lalu menekan Pakai.
+                Harga dari lokasi lain juga hanya referensi. Semua sumber harga terlihat di tabel.
               </Kenapa>
               <HargaPanel
                 locationId={location.id}
