@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import { Badge, Banner, Button } from "@/components/ui";
 import { formatNumber, formatPct, formatRupiah } from "@/lib/format";
 import {
@@ -10,18 +10,22 @@ import {
   mintaAnalisaAiAction,
   statusAnalisaAiAction,
   terimaAnalisaAiAction,
+  terimaSemuaAnalisaAiAction,
   tolakAnalisaAiAction,
 } from "@/lib/ahsp/analisa-ai-actions";
 import { perluTarikUlang, type RingkasUsulanAi } from "@/lib/ahsp/usulan-status";
 import { BATAS_ITEM_ANALISA_AI } from "@/lib/ahsp/analisa-ai-parse";
 
 /**
- * DRAF ANALISA AI (DECISIONS baru 2026-10-07).
+ * ANALISA AI PER URAIAN (DECISIONS 807; asal 2026-10-07).
  *
  * Untuk item yang tidak punya analisa dari mana pun – berkas kontrak, padanan
- * AHSP, rincian tangan, atau borongan. AI menyusun koefisien bahan, upah, dan
- * alat per satuan item; drafnya tersimpan di server dan baru dipakai RAPL
- * setelah diterima orang. Yang diterima selalu disebut "usulan AI".
+ * AHSP, rincian tangan, atau borongan. "Urai semua item" meminta AI menyusun
+ * koefisien bahan, upah, dan alat untuk SETIAP uraian, sesuai spesifikasi yang
+ * tertulis di uraian itu, berputar sampai habis. Drafnya baru dipakai setelah
+ * diterima orang (satu per satu atau sekaligus), dan analisa yang diterima
+ * berlaku untuk item beruraian sama di semua lokasi organisasi. Yang diterima
+ * selalu disebut "usulan AI".
  *
  * Seluruh angka biaya di sini dihitung server (`rapl-calc.ts`).
  */
@@ -49,7 +53,12 @@ export type KeadaanAnalisaAiView = {
   pendingSinceMs: number | null;
   model: string | null;
   error: string | null;
+  /** Uraian unik tanpa analisa. */
   jumlahTanpa: number;
+  /** Item tanpa analisa (bisa lebih dari uraiannya: uraian sama dipakai beberapa item). */
+  itemTanpa: number;
+  /** Jumlah yang dimintakan run terakhir (urai semua = seluruh uraian). */
+  diminta: number;
   nilaiTanpa: string;
   draf: DrafAnalisaRow[];
   diterima: { id: string; code: string; uraian: string; komponen: number; pada: string; oleh: string | null }[];
@@ -123,9 +132,23 @@ export function AnalisaAiPanel({
     jalankan(
       "minta",
       () => mintaAnalisaAiAction({ locationId, slug }),
-      (h: { diminta: number; tidakDiminta: number }) =>
-        `Draf analisa untuk ${h.diminta} item sedang disusun.${h.tidakDiminta > 0 ? ` ${h.tidakDiminta} item lain menyusul di permintaan berikutnya.` : ""}`,
+      (h: { diminta: number }) =>
+        `Analisa ${h.diminta} uraian sedang disusun, ${BATAS_ITEM_ANALISA_AI} uraian sekali jalan. Drafnya muncul bertahap di sini.`,
     );
+  const terimaSemua = () => {
+    if (
+      !window.confirm(
+        `${k.draf.length} draf analisa akan diterima dan langsung masuk hitungan RAPL.\n\n` +
+          "Analisa yang diterima juga dipakai untuk item beruraian sama di lokasi lain. Ini perkiraan AI, bukan analisa resmi, dan bisa dicabut kapan saja. Lanjutkan?",
+      )
+    )
+      return;
+    jalankan(
+      "terima-semua",
+      () => terimaSemuaAnalisaAiAction({ locationId, slug }),
+      (h: { diterima: number }) => `${h.diterima} analisa diterima dan masuk hitungan RAPL sebagai usulan AI.`,
+    );
+  };
 
   if (k.jumlahTanpa === 0 && k.draf.length === 0 && k.diterima.length === 0) return null;
 
@@ -133,26 +156,39 @@ export function AnalisaAiPanel({
     <section className="space-y-3 rounded-lg border border-border p-3">
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-[240px] flex-1">
-          <h3 className="text-[14px] font-semibold text-ink">Draf analisa AI</h3>
+          <h3 className="text-[14px] font-semibold text-ink">Analisa AI per uraian</h3>
           <p className="mt-0.5 text-[13px] text-ink-muted">
             {k.jumlahTanpa > 0 ? (
               <>
-                <strong className="text-ink">{k.jumlahTanpa} item</strong> belum punya analisa sama sekali (nilai RAB{" "}
-                {formatRupiah(BigInt(k.nilaiTanpa))}): tidak ada di berkas kontrak, tidak punya padanan AHSP, belum dirinci, dan
-                bukan borongan.{" "}
+                <strong className="text-ink">
+                  {k.itemTanpa} item ({k.jumlahTanpa} uraian)
+                </strong>{" "}
+                belum punya analisa sama sekali (nilai RAB {formatRupiah(BigInt(k.nilaiTanpa))}): tidak ada di berkas kontrak,
+                tidak punya padanan AHSP, belum dirinci, dan bukan borongan.{" "}
               </>
             ) : (
               <>Semua item sudah punya analisa. </>
             )}
-            AI menyusun koefisien bahan, upah, dan alat per satuan item. Drafnya baru dipakai setelah Anda terima, dan
-            tetap disebut &quot;usulan AI&quot; di layar dan Excel. Ini perkiraan, bukan analisa resmi.
+            AI mengurai tiap uraian sesuai spesifikasinya sendiri menjadi bahan, upah, dan alat per satuan item. Drafnya baru
+            dipakai setelah Anda terima, lalu berlaku juga untuk uraian yang sama di lokasi lain. Tetap disebut &quot;usulan
+            AI&quot; di layar dan Excel: perkiraan, bukan analisa resmi.
           </p>
         </div>
-        {canInput && canUseAi && k.jumlahTanpa > 0 ? (
-          <Button type="button" size="sm" variant="secondary" loading={sibuk === "minta"} disabled={k.menunggu} onClick={minta}>
-            <Sparkles aria-hidden className="size-3.5" />
-            Minta draf untuk {Math.min(BATAS_ITEM_ANALISA_AI, k.jumlahTanpa)} item bernilai terbesar
-          </Button>
+        {canInput && canUseAi && (k.jumlahTanpa > 0 || k.draf.length > 0) ? (
+          <div className="flex flex-wrap gap-2">
+            {k.jumlahTanpa > 0 ? (
+              <Button type="button" size="sm" variant="secondary" loading={sibuk === "minta"} disabled={k.menunggu} onClick={minta}>
+                <Sparkles aria-hidden className="size-3.5" />
+                Urai semua item ({k.jumlahTanpa} uraian)
+              </Button>
+            ) : null}
+            {k.draf.length > 0 ? (
+              <Button type="button" size="sm" variant="secondary" loading={sibuk === "terima-semua"} onClick={terimaSemua}>
+                <Check aria-hidden className="size-3.5" />
+                Terima semua ({k.draf.length})
+              </Button>
+            ) : null}
+          </div>
         ) : null}
       </div>
 
@@ -160,8 +196,12 @@ export function AnalisaAiPanel({
       {k.menunggu ? (
         <Banner
           tone="info"
-          title={`Draf analisa sedang disusun – ${detik} detik`}
-          description="Permintaannya sudah tercatat, jadi Anda boleh meninggalkan halaman ini. Hasilnya muncul di sini begitu siap."
+          title={
+            k.diminta > BATAS_ITEM_ANALISA_AI
+              ? `Analisa sedang disusun – ${k.draf.length} dari ${k.diminta} uraian sudah ada drafnya`
+              : `Draf analisa sedang disusun – ${detik} detik`
+          }
+          description={`Dikerjakan ${BATAS_ITEM_ANALISA_AI} uraian sekali jalan. Anda boleh meninggalkan halaman ini; draf yang sudah jadi tetap tersimpan dan bisa langsung diputuskan.`}
         />
       ) : null}
       {k.terputus ? (
@@ -171,7 +211,13 @@ export function AnalisaAiPanel({
           description="Prosesnya berhenti sebelum selesai, mungkin karena aplikasi sedang diperbarui. Silakan minta lagi."
         />
       ) : null}
-      {!k.menunggu && k.error ? <Banner tone="error" title="Permintaan draf analisa gagal" description={k.error} /> : null}
+      {!k.menunggu && k.error ? (
+        k.draf.length > 0 ? (
+          <Banner tone="warning" title="Urai selesai dengan catatan" description={k.error} />
+        ) : (
+          <Banner tone="error" title="Permintaan draf analisa gagal" description={k.error} />
+        )
+      ) : null}
 
       {k.draf.length > 0 ? (
         <div className="space-y-3">

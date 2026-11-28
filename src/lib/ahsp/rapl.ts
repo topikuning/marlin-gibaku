@@ -2,8 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { normalisasiSatuan } from "./cocok";
 import { itemRabAktif, metodeDisetujui } from "./padanan";
-import { analisaAiDiterima, analisaKontrakLokasi } from "./analisa-kontrak";
-import { kategoriRaplMarlin, uraiItem } from "@/lib/rapl-templat/urai";
+import { analisaAiDiterima, analisaAiOrganisasi, analisaKontrakLokasi } from "./analisa-kontrak";
 import {
   agregasiKebutuhan,
   hitungItemRapl,
@@ -39,7 +38,7 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
   if (items.length === 0) return [];
   const tanda = [...new Set(items.map((i) => i.tanda))];
 
-  const [padanan, rincian, petaKontrak, petaAi, induk] = await Promise.all([
+  const [padanan, rincian, petaKontrak, petaAi, petaAiUraian] = await Promise.all([
     tanda.length
       ? db.ahspPadanan.findMany({
           where: { tanda: { in: tanda }, entryId: { not: null } },
@@ -82,14 +81,10 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
      */
     analisaKontrakLokasi(locationId),
     analisaAiDiterima(locationId),
-    // Judul kelompok tepat di atas item – dipakai templat RAPL untuk baris
-    // "Pengadaan barang" dan ongkos kirim yang menyebut barangnya.
-    db.rabNode.findMany({
-      where: { id: { in: items.map((i) => i.id) } },
-      select: { id: true, parent: { select: { name: true } } },
-    }),
+    // Analisa AI yang diterima untuk URAIAN yang sama di lokasi mana pun
+    // dalam organisasi (DECISIONS 807): rincian per uraian, dipakai ulang.
+    analisaAiOrganisasi(locationId, tanda),
   ]);
-  const judulInduk = new Map(induk.map((n) => [n.id, n.parent?.name ?? ""]));
 
   // Hanya padanan yang sudah ada yang menyetujui yang boleh menjadi angka.
   // Usulan mesin sengaja diperlakukan seperti tidak ada padanan — bukan
@@ -109,6 +104,7 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
     const k = petaKontrak.get(it.lineageKey);
     const komponenKontrak = k?.komponen ?? [];
     const ai = petaAi.get(it.lineageKey);
+    const aiUraian = ai ? undefined : petaAiUraian.get(it.tanda);
     return {
       lineageKey: it.lineageKey,
       code: it.code,
@@ -170,40 +166,23 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
             satuanNorm: normalisasiSatuan(it.unit),
             komponen: ai.komponen,
           }
-        : analisaTemplat(it, judulInduk.get(it.id) ?? ""),
+        : aiUraian
+        ? {
+            // Uraian yang sama sudah diurai dan DITERIMA di lokasi lain
+            // (DECISIONS 807): dipakai ulang, dengan asal disebut.
+            sumber: "ai" as const,
+            kode: "Usulan AI",
+            ...(aiUraian.locationId === locationId ? {} : { dariLokasi: aiUraian.lokasi }),
+            uraian: it.name,
+            satuanNorm: normalisasiSatuan(it.unit),
+            komponen: aiUraian.komponen,
+          }
+        : // Belum ada analisa dari mana pun: BELUM TERURAI, tidak ditebak
+          // (templat prototipe dicabut, DECISIONS 807). Diurai lewat
+          // "Urai semua item" – analisa AI per uraian.
+          null,
     };
   });
-}
-
-/**
- * TEMPLAT RAPL sebagai sumber KEEMPAT (keputusan user 2026-11-28, DECISIONS
- * 802): item yang tidak punya analisa kontrak, padanan AHSP yang disetujui,
- * maupun usulan AI yang diterima diurai otomatis dari uraiannya – tanpa
- * persetujuan per uraian, supaya RAPL jadi sekali klik. Selalu bersumber
- * `templat` di layar dan Excel.
- *
- * Koefisiennya per satuan item, jadi satuannya sepadan dengan item. Templat
- * TIDAK membawa harga (DECISIONS 805): harga di prototipe referensi adalah
- * contoh proyek lain. Harga ditentukan per lokasi.
- */
-function analisaTemplat(
-  it: { name: string; unit: string | null; volume: number | null; amount: bigint },
-  induk: string,
-): NonNullable<ItemUntukRapl["analisa"]> {
-  const h = uraiItem({ uraian: it.name, satuan: it.unit ?? "", induk });
-  return {
-    sumber: "templat",
-    templat: h.templat,
-    kode: `Templat ${h.templat}`,
-    uraian: it.name,
-    satuanNorm: normalisasiSatuan(it.unit),
-    komponen: h.komponen.map((k) => ({
-      kategori: kategoriRaplMarlin(k.kategori),
-      nama: k.nama,
-      satuan: k.satuan,
-      koefisien: k.koefisien,
-    })),
-  };
 }
 
 export async function simulasiRapl(locationId: string): Promise<SimulasiRapl> {

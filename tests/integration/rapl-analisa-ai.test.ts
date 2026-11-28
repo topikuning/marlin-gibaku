@@ -129,10 +129,7 @@ beforeAll(async () => {
   ).id;
   const nodes = [
     { kind: "kategori" as const, code: "I", name: "Pekerjaan Persiapan", volume: null, unit: null, unitPrice: null, amount: 18_000_000n, lineageKey: "I", parentLineageKey: null, sortOrder: 0, excelRow: null },
-    // Dua item yang TIDAK dikenali templat RAPL (jadi templat GEN, satu baris
-    // pengadaan) – itulah sasaran draf AI sejak DECISIONS 802. Plesteran
-    // dikenali templat, jadi bukan sasaran.
-    item("I#1", "1", "Pasangan batu karang khusus 1:4", "m3", 10, 900_000, 1),
+    item("I#1", "1", "Pasangan batu kali 1:4", "m3", 10, 900_000, 1),
     item("I#2", "2", "Mobilisasi dan demobilisasi", "Ls", 1, 5_000_000, 2),
     item("I#3", "3", "Plesteran 1:4", "m2", 50, 80_000, 3),
   ];
@@ -160,9 +157,9 @@ describe("draf analisa AI", () => {
     }
   });
 
-  it("meminta: item tanpa rincian sungguhan (templat GEN), urut nilai terbesar; hasilnya DRAF, RAPL belum berubah", async () => {
+  it("meminta: item tanpa analisa, urut nilai terbesar; hasilnya DRAF, RAPL belum berubah", async () => {
     const r = await mintaAnalisaAiAction({ locationId: lokasiId, slug });
-    expect(r).toMatchObject({ ok: true, diminta: 2, totalTanpa: 2 });
+    expect(r).toMatchObject({ ok: true, diminta: 3, totalTanpa: 3 });
     await tungguSelesai();
     expect(promptTerkirim.at(-1)).toContain("Rembang");
     expect(promptTerkirim.at(-1)).toContain("bahan|Semen PC|kg|1500");
@@ -170,12 +167,7 @@ describe("draf analisa AI", () => {
     const draf = await db.raplAnalisaAi.findMany({ where: { locationId: lokasiId, status: "draf" }, include: { komponen: true } });
     expect(draf.map((d) => d.lineageKey).sort()).toEqual(["I#1", "I#2"]);
     const items = await itemUntukRapl(lokasiId);
-    // Draf belum mengubah apa pun: semua item masih dari templat.
-    expect(items.map((i) => [i.lineageKey, i.analisa?.sumber, i.analisa?.templat])).toEqual([
-      ["I#1", "templat", "GEN"],
-      ["I#2", "templat", "GEN"],
-      ["I#3", "templat", "plester"],
-    ]);
+    expect(items.every((i) => i.analisa === null)).toBe(true);
     expect(await db.auditLog.count({ where: { action: "rapl.analisa_ai.minta", resourceId: lokasiId } })).toBe(1);
 
     const k = await keadaanAnalisaAi(lokasiId);
@@ -200,10 +192,10 @@ describe("draf analisa AI", () => {
     const batu = per.item.find((i) => i.lineageKey === "I#1")!;
     expect(batu.sumberAnalisa).toBe("ai");
     expect(batu.komponen.find((c) => c.nama === "Semen PC")).toMatchObject({ jumlah: 1630, harga: 1_500n, biaya: 2_445_000n });
-    expect(per.item.find((i) => i.lineageKey === "I#2")!.sumberAnalisa).toBe("templat");
+    expect(per.item.find((i) => i.lineageKey === "I#2")!.sumberAnalisa).toBeNull();
   });
 
-  it("tolak dicatat; cabut mengembalikan item ke templat", async () => {
+  it("tolak dicatat; cabut mengembalikan item tanpa analisa", async () => {
     const mob = await db.raplAnalisaAi.findFirstOrThrow({ where: { locationId: lokasiId, lineageKey: "I#2", status: "draf" } });
     expect(await tolakAnalisaAiAction({ locationId: lokasiId, slug, ids: [mob.id] })).toEqual({ ok: true, ditolak: 1 });
     expect((await db.raplAnalisaAi.findUniqueOrThrow({ where: { id: mob.id } })).status).toBe("ditolak");
@@ -211,7 +203,7 @@ describe("draf analisa AI", () => {
     const batu = await db.raplAnalisaAi.findFirstOrThrow({ where: { locationId: lokasiId, lineageKey: "I#1", status: "diterima" } });
     expect(await cabutAnalisaAiAction({ locationId: lokasiId, slug, ids: [batu.id] })).toEqual({ ok: true, dicabut: 1 });
     const items = await itemUntukRapl(lokasiId);
-    expect(items.find((i) => i.lineageKey === "I#1")!.analisa).toMatchObject({ sumber: "templat", templat: "GEN" });
+    expect(items.find((i) => i.lineageKey === "I#1")!.analisa).toBeNull();
     expect(await db.auditLog.count({ where: { resourceId: lokasiId, action: { in: ["rapl.analisa_ai.tolak", "rapl.analisa_ai.cabut"] } } })).toBe(2);
   });
 });

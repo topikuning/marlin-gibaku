@@ -137,6 +137,50 @@ async function buatLokasi(nama: string, kabupaten: string) {
   return { id, slug };
 }
 
+/**
+ * Analisa yang sudah DITERIMA untuk satu uraian (DECISIONS 807): rincian kini
+ * datang dari analisa kontrak/AHSP/AI, bukan templat. Diterima di satu lokasi,
+ * dipakai ulang oleh uraian yang sama di lokasi lain organisasi.
+ */
+async function terimaAnalisa(
+  locationId: string,
+  lineageKey: string,
+  uraian: string,
+  satuan: string,
+  komponen: { kategori: string; nama: string; satuan: string; koefisien: number }[],
+) {
+  const { tandaItem } = await import("@/lib/ahsp/cocok");
+  const run = await db.raplAnalisaAiRun.create({ data: { locationId, status: "selesai", diminta: 1, totalTanpa: 1, requestedById: adminId } });
+  await db.raplAnalisaAi.create({
+    data: {
+      runId: run.id,
+      locationId,
+      lineageKey,
+      code: lineageKey,
+      uraian,
+      satuan,
+      tanda: tandaItem(uraian, satuan),
+      keyakinan: "sedang",
+      alasan: "uji",
+      status: "diterima",
+      diputuskanOlehId: adminId,
+      diputuskanAt: new Date(),
+      komponen: { create: komponen.map((k, i) => ({ urutan: i + 1, ...k })) },
+    },
+  });
+}
+
+const BETON = [
+  { kategori: "bahan", nama: "Semen Portland komposit 50 kg", satuan: "zak", koefisien: 7.68 },
+  { kategori: "bahan", nama: "Pasir beton", satuan: "m3", koefisien: 0.5 },
+  { kategori: "bahan", nama: "Kerikil beton", satuan: "m3", koefisien: 0.8 },
+  { kategori: "bahan", nama: "Air kerja", satuan: "liter", koefisien: 215 },
+  { kategori: "upah", nama: "Pekerja", satuan: "OH", koefisien: 1.65 },
+  { kategori: "upah", nama: "Tukang batu", satuan: "OH", koefisien: 0.25 },
+  { kategori: "upah", nama: "Mandor", satuan: "OH", koefisien: 0.083 },
+  { kategori: "alat", nama: "Molen beton 0,35 m3", satuan: "jam", koefisien: 0.25 },
+];
+
 async function tungguRun(locationId: string, sejak: Date) {
   for (let i = 0; i < 200; i++) {
     const run = await db.hsdUsulanRun.findFirst({ where: { locationId, createdAt: { gte: sejak } }, orderBy: { createdAt: "desc" } });
@@ -164,6 +208,11 @@ beforeAll(async () => {
   L.A = await buatLokasi("Alfa", "Demak");
   L.B = await buatLokasi("Beta", "Demak");
   L.C = await buatLokasi("Gama", "Jepara");
+  // Rincian kedua uraian diterima di A; B dan C memakainya ulang (DECISIONS 807).
+  await terimaAnalisa(L.A.id, "I#1", "Beton fc' 20 MPa site mix", "m³", BETON);
+  await terimaAnalisa(L.A.id, "I#2", "Mesin pembuat es balok 5 ton", "unit", [
+    { kategori: "bahan", nama: "Mesin pembuat es balok 5 ton", satuan: "unit", koefisien: 1 },
+  ]);
 }, 120_000);
 
 afterAll(async () => {

@@ -106,6 +106,50 @@ async function buatLokasi(nama: string, kabupaten = "Demak"): Promise<{ id: stri
   return { id, slug };
 }
 
+/**
+ * Analisa yang sudah DITERIMA untuk satu uraian (DECISIONS 807): rincian kini
+ * datang dari analisa kontrak/AHSP/AI, bukan templat. Diterima di satu lokasi,
+ * dipakai ulang oleh uraian yang sama di lokasi lain organisasi.
+ */
+async function terimaAnalisa(
+  locationId: string,
+  lineageKey: string,
+  uraian: string,
+  satuan: string,
+  komponen: { kategori: string; nama: string; satuan: string; koefisien: number }[],
+) {
+  const { tandaItem } = await import("@/lib/ahsp/cocok");
+  const run = await db.raplAnalisaAiRun.create({ data: { locationId, status: "selesai", diminta: 1, totalTanpa: 1, requestedById: adminId } });
+  await db.raplAnalisaAi.create({
+    data: {
+      runId: run.id,
+      locationId,
+      lineageKey,
+      code: lineageKey,
+      uraian,
+      satuan,
+      tanda: tandaItem(uraian, satuan),
+      keyakinan: "sedang",
+      alasan: "uji",
+      status: "diterima",
+      diputuskanOlehId: adminId,
+      diputuskanAt: new Date(),
+      komponen: { create: komponen.map((k, i) => ({ urutan: i + 1, ...k })) },
+    },
+  });
+}
+
+const BETON = [
+  { kategori: "bahan", nama: "Semen Portland komposit 50 kg", satuan: "zak", koefisien: 7.68 },
+  { kategori: "bahan", nama: "Pasir beton", satuan: "m3", koefisien: 0.5 },
+  { kategori: "bahan", nama: "Kerikil beton", satuan: "m3", koefisien: 0.8 },
+  { kategori: "bahan", nama: "Air kerja", satuan: "liter", koefisien: 215 },
+  { kategori: "upah", nama: "Pekerja", satuan: "OH", koefisien: 1.65 },
+  { kategori: "upah", nama: "Tukang batu", satuan: "OH", koefisien: 0.25 },
+  { kategori: "upah", nama: "Mandor", satuan: "OH", koefisien: 0.083 },
+  { kategori: "alat", nama: "Molen beton 0,35 m3", satuan: "jam", koefisien: 0.25 },
+];
+
 async function tungguSelesai(locationId: string) {
   for (let i = 0; i < 200; i++) {
     const run = await db.hsdUsulanRun.findFirst({ where: { locationId }, orderBy: { createdAt: "desc" } });
@@ -124,6 +168,12 @@ beforeAll(async () => {
   sesi = { id: adminId, orgId: org.id, role: "super_admin" };
   paketId = (await db.package.create({ data: { orgId: org.id, name: `Paket ${suffix}`, stage: "pelaksanaan" } })).id;
   A = await buatLokasi("Alfa");
+  // Rincian diterima di A untuk tiap uraian; B (kabupaten lain) memakainya ulang (DECISIONS 807).
+  await terimaAnalisa(A.id, "I#0", "Beton fc' 20 MPa site mix", "m³", BETON);
+  for (let i = 1; i <= 30; i++)
+    await terimaAnalisa(A.id, `I#${i}`, `Perangkat khusus nomor ${i}`, "unit", [
+      { kategori: "bahan", nama: `Perangkat khusus nomor ${i}`, satuan: "unit", koefisien: 1 },
+    ]);
   // Kabupaten lain: lokasi sekabupaten memakai katalog harga wilayah (DECISIONS
   // 806) dan tidak meminta AI lagi – di sini yang diuji justru perputarannya.
   B = await buatLokasi("Beta", "Jepara");

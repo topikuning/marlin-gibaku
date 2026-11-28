@@ -11,7 +11,8 @@ import { durasiKontrakBerlaku } from "@/lib/progress-calc";
  *
  * Seluruh angka item dan komponennya datang dari `keadaanItemRapl` – jalur
  * yang SAMA dengan layar RAPL (analisa kontrak → AHSP disetujui → draf AI
- * diterima → templat). Berkas ini hanya merakit dan mengelompokkan.
+ * diterima, termasuk analisa uraian yang sama di lokasi lain – DECISIONS 807).
+ * Berkas ini hanya merakit dan mengelompokkan.
  */
 export type LokasiRaplSiapIsi = {
   id: string;

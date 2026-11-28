@@ -50,6 +50,8 @@ export type TargetAnalisaAi = {
   code: string;
   uraian: string;
   satuan: string;
+  /** Tanda uraian (DECISIONS 807) – analisa yang diterima berlaku untuk semua item bertanda sama. */
+  tanda?: string;
 };
 
 export type KomponenAnalisaAi = { kategori: "bahan" | "upah" | "alat"; nama: string; satuan: string; koefisien: number };
@@ -59,6 +61,7 @@ export type UsulanAnalisaAi = {
   code: string;
   uraian: string;
   satuan: string;
+  tanda?: string;
   keyakinan: "rendah" | "sedang" | "tinggi";
   alasan: string;
   komponen: KomponenAnalisaAi[];
@@ -102,6 +105,7 @@ export function cocokkanUsulanAnalisa(
       code: t.code,
       uraian: t.uraian,
       satuan: t.satuan,
+      ...(t.tanda ? { tanda: t.tanda } : {}),
       keyakinan: it.keyakinan,
       alasan: rapikan(it.alasan).slice(0, 400),
       komponen,

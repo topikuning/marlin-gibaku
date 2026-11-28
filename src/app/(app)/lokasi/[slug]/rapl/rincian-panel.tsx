@@ -62,7 +62,9 @@ export type ItemRaplRow = {
   biaya: string;
   komponenBelumBerharga: number;
   /** Asal analisa: berkas kontrak (dasar utama), padanan AHSP PUPR, atau usulan AI yang diterima. */
-  sumberAnalisa: "kontrak" | "ahsp" | "ai" | "templat" | null;
+  sumberAnalisa: "kontrak" | "ahsp" | "ai" | null;
+  /** Lokasi asal analisa AI yang dipakai ulang (DECISIONS 807). */
+  dariLokasi: string | null;
   lengkap: boolean;
   margin: string | null;
   marginPersen: number | null;
@@ -82,11 +84,9 @@ const LABEL_CARA: Record<string, string> = {
 };
 
 /** Asal analisa selain AHSP – disebut apa adanya, tidak disamakan dengan AHSP. */
-const LABEL_SUMBER: Record<"kontrak" | "ai" | "templat", string> = {
+const LABEL_SUMBER: Record<"kontrak" | "ai", string> = {
   kontrak: "Dari analisa kontrak",
   ai: "Usulan AI (diterima)",
-  // Templat RAPL referensi (DECISIONS 802) – dipakai langsung, selalu disebut.
-  templat: "Dari templat RAPL",
 };
 
 const LABEL_ALASAN: Record<string, string> = {
@@ -168,7 +168,7 @@ export function RincianPanel({
         // keduanya sumber yang berbeda (keputusan user 2026-10-06).
         caraLabel:
           i.sumberAnalisa !== null && i.sumberAnalisa !== "ahsp" && (i.cara === "ahsp" || i.cara === "campuran")
-            ? `${LABEL_SUMBER[i.sumberAnalisa]}${i.cara === "campuran" ? " + tambahan" : ""}`
+            ? `${LABEL_SUMBER[i.sumberAnalisa]}${i.dariLokasi ? ` – dari ${i.dariLokasi}` : ""}${i.cara === "campuran" ? " + tambahan" : ""}`
             : (LABEL_CARA[i.cara] ?? i.cara),
         keteranganl:
           i.alasanLewat !== null
@@ -360,9 +360,7 @@ export function RincianPanel({
                                 ? "analisa kontrak"
                                 : dibuka.sumberAnalisa === "ai"
                                   ? "usulan AI"
-                                  : dibuka.sumberAnalisa === "templat"
-                                    ? "templat"
-                                    : "AHSP"
+                                  : "AHSP"
                               : "tambahan"}
                           </Badge>
                         </p>
@@ -407,10 +405,10 @@ export function RincianPanel({
                   {dibuka.sumberAnalisa === "kontrak"
                     ? "Koefisien analisa kontrak diambil dari berkas RAB dan tidak bisa diubah di sini. "
                     : dibuka.sumberAnalisa === "ai"
-                      ? "Koefisien ini usulan AI yang sudah diterima, bukan angka resmi. Untuk menggantinya, cabut usulannya di bagian Draf analisa AI. "
-                      : dibuka.sumberAnalisa === "templat"
-                        ? "Koefisien ini dari templat RAPL (diurai otomatis dari uraian item), bukan angka resmi. Item yang punya analisa kontrak, padanan AHSP yang disetujui, atau usulan AI yang diterima memakai itu lebih dulu. "
-                        : "Koefisien bertanda AHSP tidak bisa diubah, karena itu angka resmi yang harus bisa dipertanggungjawabkan saat diperiksa. "}
+                      ? dibuka.dariLokasi
+                        ? `Koefisien ini usulan AI yang diterima untuk uraian yang sama di ${dibuka.dariLokasi}, dipakai ulang di sini. Bukan angka resmi. `
+                        : "Koefisien ini usulan AI yang sudah diterima, bukan angka resmi. Untuk menggantinya, cabut usulannya di bagian Draf analisa AI. "
+                      : "Koefisien bertanda AHSP tidak bisa diubah, karena itu angka resmi yang harus bisa dipertanggungjawabkan saat diperiksa. "}
                   Yang bisa Anda lakukan: menambah komponen yang belum ada.
                 </p>
               ) : null}

@@ -39,7 +39,7 @@ const JUDUL_KATEGORI: Record<string, string> = {
   upah: "UPAH / TENAGA KERJA",
   alat: "PERALATAN",
   fasilitas: "FASILITAS",
-  // Templat RAPL (DECISIONS 802).
+  // Kategori jasa & biaya umum (DECISIONS 802) – tetap dipakai analisa lain.
   jasa: "JASA, SUBKON DAN BIAYA RESMI",
   umum: "BIAYA UMUM LAPANGAN",
 };
@@ -448,11 +448,10 @@ function tulisDilewat(wb: ExcelJS.Workbook, rapl: SimulasiRapl): void {
 
 /* ---------------------------------------------------------- rincian per item */
 
-const SUMBER_JUDUL: Record<"kontrak" | "ahsp" | "ai" | "templat", string> = {
+const SUMBER_JUDUL: Record<"kontrak" | "ahsp" | "ai", string> = {
   kontrak: "Analisa kontrak",
   ahsp: "AHSP PUPR",
   ai: "Usulan AI – diterima",
-  templat: "Templat RAPL",
 };
 
 const CARA_JUDUL: Record<string, string> = {

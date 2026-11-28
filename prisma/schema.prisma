@@ -4459,6 +4459,10 @@ model RaplAnalisaAi {
   code             String
   uraian           String
   satuan           String
+  /// Uraian + satuan dibakukan (`tandaItem`, sama dengan padanan AHSP).
+  /// Analisa yang DITERIMA dipakai ulang oleh item bertanda sama di semua
+  /// lokasi organisasi – rincian per uraian, bukan per lokasi (DECISIONS 807).
+  tanda            String?
   /// rendah | sedang | tinggi
   keyakinan        String
   alasan           String
@@ -4475,6 +4479,7 @@ model RaplAnalisaAi {
 
   @@unique([runId, lineageKey])
   @@index([locationId, lineageKey, status])
+  @@index([tanda, status])
   @@map("rapl_analisa_ai")
 }
 

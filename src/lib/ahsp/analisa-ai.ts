@@ -12,6 +12,7 @@ import {
   type UsulanAnalisaAi,
 } from "./analisa-ai-parse";
 import { itemUntukRapl } from "./rapl";
+import { itemRabAktif } from "./padanan";
 import { kunciSumberDaya } from "./rapl-calc";
 
 /**
@@ -32,25 +33,46 @@ export type TargetAnalisaSiap = {
   tidakDiminta: number;
 };
 
-/** Item yang belum punya cara hitung apa pun – sasaran draf analisa AI. */
+/**
+ * Item yang belum punya cara hitung apa pun – sasaran draf analisa AI.
+ *
+ * SATU per URAIAN (DECISIONS 807): item-item bertanda sama (uraian + satuan
+ * dibakukan) cukup diurai sekali; begitu analisanya diterima, item lain
+ * bertanda sama – di lokasi ini maupun lokasi lain organisasi – ikut
+ * memakainya. Yang dikirim mewakili tanda itu: item bernilai RAB terbesar.
+ */
 export async function itemTanpaAnalisa(locationId: string) {
-  const [items, draf] = await Promise.all([
+  const [items, draf, rab] = await Promise.all([
     itemUntukRapl(locationId),
-    db.raplAnalisaAi.findMany({ where: { locationId, status: "draf" }, select: { lineageKey: true } }),
+    db.raplAnalisaAi.findMany({ where: { locationId, status: "draf" }, select: { lineageKey: true, tanda: true } }),
+    itemRabAktif(locationId),
   ]);
+  const tandaPer = new Map(rab.map((r) => [r.lineageKey, r.tanda]));
   const menunggu = new Set(draf.map((d) => d.lineageKey));
-  const tanpa = items.filter(
+  const tandaMenunggu = new Set(draf.map((d) => d.tanda).filter((t): t is string => !!t));
+  const semua = items.filter(
     (it) =>
-      // Templat "GEN" hanya satu baris pengadaan tanpa rincian – item itu
-      // tetap sasaran draf analisa AI (DECISIONS 802).
-      (it.analisa === null || (it.analisa.sumber === "templat" && it.analisa.templat === "GEN")) &&
+      it.analisa === null &&
       it.volume !== null &&
       it.rincian?.hargaBorongan == null &&
       (it.rincian?.tambahan.length ?? 0) === 0 &&
       // Usulan AHSP yang tinggal disetujui bukan "belum terpetakan".
       !it.adaUsulan,
   );
-  return { tanpa, menungguDraf: menunggu };
+  const perTanda = new Map<string, (typeof semua)[number]>();
+  for (const it of semua) {
+    const t = tandaPer.get(it.lineageKey) ?? it.lineageKey;
+    const ada = perTanda.get(t);
+    if (!ada || it.amount > ada.amount) perTanda.set(t, it);
+  }
+  const tanpa = [...perTanda.entries()].map(([tanda, it]) => ({ ...it, tanda }));
+  return {
+    tanpa,
+    menungguDraf: menunggu,
+    tandaMenunggu,
+    itemTanpa: semua.length,
+    nilaiTanpa: semua.reduce((a, t) => a + t.amount, 0n),
+  };
 }
 
 /**
@@ -61,8 +83,10 @@ export async function itemTanpaAnalisa(locationId: string) {
 export async function siapkanTargetAnalisa(
   locationId: string,
   dipilih?: ReadonlySet<string>,
+  /** Tanda yang SUDAH diminta di putaran sebelumnya run yang sama (urai semua, DECISIONS 807). */
+  kecuali?: ReadonlySet<string>,
 ): Promise<TargetAnalisaSiap | { error: string }> {
-  const [lokasi, { tanpa, menungguDraf }] = await Promise.all([
+  const [lokasi, { tanpa, menungguDraf, tandaMenunggu }] = await Promise.all([
     db.location.findUnique({ where: { id: locationId }, select: { name: true, regency: true, province: true } }),
     itemTanpaAnalisa(locationId),
   ]);
@@ -71,12 +95,14 @@ export async function siapkanTargetAnalisa(
 
   const kandidat = dipilih && dipilih.size > 0
     ? tanpa.filter((t) => dipilih.has(t.lineageKey))
-    : tanpa.filter((t) => !menungguDraf.has(t.lineageKey));
+    : tanpa.filter((t) => !menungguDraf.has(t.lineageKey) && !tandaMenunggu.has(t.tanda) && !kecuali?.has(t.tanda));
   if (kandidat.length === 0) {
     return {
       error: dipilih
         ? "Item yang dipilih sudah punya analisa atau rincian."
-        : "Semua item tanpa analisa sudah punya draf AI yang menunggu keputusan. Putuskan dulu drafnya.",
+        : kecuali && kecuali.size > 0
+          ? "Semua uraian tanpa analisa sudah dimintakan."
+          : "Semua item tanpa analisa sudah punya draf AI yang menunggu keputusan. Putuskan dulu drafnya.",
     };
   }
   const urut = [...kandidat].sort((a, b) => (b.amount > a.amount ? 1 : b.amount < a.amount ? -1 : 0));
@@ -128,6 +154,29 @@ export async function siapkanTargetAnalisa(
     x.n += 1000; // harga lokasi selalu diikutkan
     sd.set(kk, x);
   }
+  /*
+   * Nama sumber daya yang sudah dipakai analisa AI yang DITERIMA di lokasi
+   * mana pun dalam organisasi (DECISIONS 807): AI diminta memakai nama yang
+   * sama, supaya "Semen" di satu RAB tidak menjadi "Semen PC 40 kg" di RAB
+   * berikutnya – kebutuhan, katalog harga, dan HSD hanya bertemu bila namanya
+   * sama persis.
+   */
+  const org = await db.location.findUnique({ where: { id: locationId }, select: { package: { select: { orgId: true } } } });
+  if (org) {
+    const kompOrg = await db.raplAnalisaAiKomponen.groupBy({
+      by: ["kategori", "nama", "satuan"],
+      where: { usulan: { status: "diterima", location: { package: { orgId: org.package.orgId } } } },
+      _count: { _all: true },
+      orderBy: { _count: { nama: "desc" } },
+      take: 300,
+    });
+    for (const k of kompOrg) {
+      const kk = kunciSumberDaya(k.kategori, k.nama, k.satuan);
+      const x = sd.get(kk) ?? { kategori: k.kategori, nama: k.nama, satuan: k.satuan, harga: new Set<number>(), n: 0 };
+      x.n += k._count._all;
+      sd.set(kk, x);
+    }
+  }
   const sumberDaya = [...sd.values()]
     .sort((a, b) => b.n - a.n)
     .slice(0, 250)
@@ -143,6 +192,7 @@ export async function siapkanTargetAnalisa(
         code: it.code,
         uraian: it.uraian,
         satuan: n?.unit?.trim() || it.satuanNorm || "satuan",
+        tanda: it.tanda,
         jalur: jalur(it.lineageKey),
         volume: it.volume,
         hargaSatuan: n?.unitPrice == null ? null : Number(n.unitPrice),
@@ -162,7 +212,8 @@ export function promptAnalisa(siap: TargetAnalisaSiap): string {
     "Susun ANALISA HARGA SATUAN (gaya AHSP PUPR / SNI) untuk tiap item pekerjaan di bawah: daftar bahan, upah, dan alat beserta KOEFISIEN per SATU satuan item itu.",
     "Aturan:",
     "- Koefisien dihitung per 1 satuan item seperti tertulis di kolom satuan item (mis. per 1 m³, per 1 m², per 1 Ls), bukan per satuan lain.",
-    "- Bila sumber dayanya sama dengan salah satu di DAFTAR SUMBER DAYA LOKASI, pakai nama dan satuannya PERSIS seperti di daftar, supaya harganya bisa dipakai. Bila tidak ada, pakai nama yang lazim di Indonesia.",
+    "- Bila sumber dayanya sama dengan salah satu di DAFTAR SUMBER DAYA, pakai nama dan satuannya PERSIS seperti di daftar, supaya harga dan kebutuhannya bertemu lintas RAB. Bila tidak ada, pakai nama yang lazim di Indonesia, spesifik (mutu, ukuran) tapi tanpa merek.",
+    "- Uraikan item sesuai yang tertulis di uraiannya sendiri (mutu beton, ukuran, ketebalan, jenis bahan) – jangan memakai analisa umum yang tidak sesuai spesifikasinya.",
     "- Harga satuan kontrak item diberikan sebagai pembanding skala: jumlah koefisien × harga biasanya sedikit di bawah harga satuan kontrak (selisihnya overhead & keuntungan, umumnya 10–15%). Jangan memaksakan sama persis.",
     "- Untuk item Ls/paket (mobilisasi, K3, papan nama, dll.), uraikan sumber daya yang wajar untuk 1 paket itu.",
     "- Bila suatu item tidak bisa diuraikan dengan wajar, LEWATI item itu. Jangan mengarang.",
@@ -179,7 +230,7 @@ export function promptAnalisa(siap: TargetAnalisaSiap): string {
         harga_satuan_kontrak: t.hargaSatuan,
       })),
     ),
-    "DAFTAR SUMBER DAYA LOKASI (kategori|nama|satuan|harga):",
+    "DAFTAR SUMBER DAYA (kategori|nama|satuan|harga):",
     siap.sumberDaya.map((s) => `${s.kategori}|${s.nama}|${s.satuan}|${s.harga ?? "-"}`).join("\n") || "(belum ada)",
   ].join("\n");
 }

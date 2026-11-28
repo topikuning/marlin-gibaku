@@ -47,6 +47,9 @@ export async function mintaAnalisaAiAction(args: {
 
     const { siapkanTargetAnalisa, promptAnalisa } = await import("./analisa-ai");
     const dipilih = d.dipilih && d.dipilih.length > 0 ? new Set(d.dipilih) : undefined;
+    // Tanpa pilihan = URAI SEMUA uraian tanpa analisa, berputar sampai habis
+    // (DECISIONS 807). Dengan pilihan = hanya yang dipilih, satu putaran.
+    const semua = !dipilih;
     const siap = await siapkanTargetAnalisa(d.locationId, dipilih);
     if ("error" in siap) return { ok: false, error: siap.error };
 
@@ -63,7 +66,7 @@ export async function mintaAnalisaAiAction(args: {
         locationId: d.locationId,
         status: "menunggu",
         pendingSince: penanda,
-        diminta: siap.target.length,
+        diminta: semua ? siap.totalTanpa : siap.target.length,
         totalTanpa: siap.totalTanpa,
         requestedById: user.id,
       },
@@ -74,13 +77,19 @@ export async function mintaAnalisaAiAction(args: {
       diminta: siap.target.length,
       totalTanpa: siap.totalTanpa,
       item: siap.target.map((t) => t.lineageKey),
+      semua,
     });
 
     const { mulaiAnalisaAiLatar } = await import("./analisa-ai-latar");
-    mulaiAnalisaAiLatar(user, { runId: run.id, penanda, locationId: d.locationId, dipilih: d.dipilih });
+    mulaiAnalisaAiLatar(user, { runId: run.id, penanda, locationId: d.locationId, dipilih: d.dipilih, semua });
 
     revalidatePath(`/lokasi/${d.slug}/rapl`);
-    return { ok: true, diminta: siap.target.length, totalTanpa: siap.totalTanpa, tidakDiminta: siap.tidakDiminta };
+    return {
+      ok: true,
+      diminta: semua ? siap.totalTanpa : siap.target.length,
+      totalTanpa: siap.totalTanpa,
+      tidakDiminta: semua ? 0 : siap.tidakDiminta,
+    };
   } catch (err) {
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
     return { ok: false, error: err instanceof Error ? err.message : "Gagal meminta draf analisa AI." };
@@ -90,7 +99,8 @@ export async function mintaAnalisaAiAction(args: {
 const putusanSkema = z.object({
   locationId: z.uuid(),
   slug: z.string().min(1).max(200),
-  ids: z.array(z.uuid()).min(1).max(100),
+  /** Sampai 1.000: "Terima semua" mengirim seluruh draf lokasi (DECISIONS 807). */
+  ids: z.array(z.uuid()).min(1).max(1_000),
 });
 
 /**
@@ -218,4 +228,29 @@ export async function statusAnalisaAiAction(args: {
     if (e instanceof ForbiddenError) return { ok: false, error: "Anda tidak punya akses untuk ini." };
     return { ok: false, error: e instanceof Error ? e.message : "Gagal memeriksa status." };
   }
+}
+
+/**
+ * TERIMA SEMUA draf analisa lokasi ini sekali klik (DECISIONS 807). Pintu dan
+ * jejaknya sama dengan menerima satu per satu – id dibaca di server, bukan
+ * dari peramban. Analisa yang diterima berlaku untuk semua item bertanda sama
+ * di organisasi.
+ */
+export async function terimaSemuaAnalisaAiAction(args: {
+  locationId: string;
+  slug: string;
+}): Promise<{ ok: true; diterima: number } | { ok: false; error: string }> {
+  if (!z.uuid().safeParse(args.locationId).success) return { ok: false, error: "Lokasi tidak dikenal." };
+  try {
+    // Pintu diperiksa SEBELUM draf dibaca (diperiksa lagi di dalam terima).
+    const user = await requireCapability("ai.generate");
+    await requireCapability("rapl.manage");
+    await requireLocationAccess(user, args.locationId);
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    throw err;
+  }
+  const draf = await db.raplAnalisaAi.findMany({ where: { locationId: args.locationId, status: "draf" }, select: { id: true }, take: 1_000 });
+  if (draf.length === 0) return { ok: false, error: "Tidak ada draf yang menunggu keputusan." };
+  return terimaAnalisaAiAction({ locationId: args.locationId, slug: args.slug, ids: draf.map((d) => d.id) });
 }

@@ -27,7 +27,7 @@ export const LABEL_KATEGORI: Record<string, string> = {
   upah: "Upah",
   alat: "Alat",
   fasilitas: "Fasilitas",
-  // Templat RAPL (DECISIONS 802).
+  // Kategori jasa & biaya umum (DECISIONS 802) – tetap dipakai analisa lain.
   jasa: "Jasa & biaya resmi",
   umum: "Biaya umum",
 };

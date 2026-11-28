@@ -75,10 +75,11 @@ export type RincianItem = {
 
 /**
  * Asal rincian item: `kontrak` (analisa di berkas RAB), `ahsp` (padanan PUPR
- * disetujui), `ai` (draf AI diterima), `templat` (templat RAPL referensi user,
- * dipakai langsung – keputusan user 2026-11-28, DECISIONS 802).
+ * disetujui), `ai` (analisa AI yang diterima – untuk item ini, atau untuk
+ * uraian yang sama di lokasi lain, DECISIONS 807). Templat prototipe tidak
+ * lagi menjadi sumber (dicabut 807).
  */
-export type SumberAnalisa = "kontrak" | "ahsp" | "ai" | "templat";
+export type SumberAnalisa = "kontrak" | "ahsp" | "ai";
 
 export type ItemUntukRapl = {
   lineageKey: string;
@@ -114,8 +115,8 @@ export type ItemUntukRapl = {
      * Kosong = `ahsp` (data lama).
      */
     sumber?: SumberAnalisa;
-    /** Id templat RAPL bila `sumber` = `templat` (mis. `beton20`, `GEN`). */
-    templat?: string;
+    /** Nama lokasi asal bila analisa AI ini dipakai ulang dari uraian yang sama di lokasi lain (DECISIONS 807). */
+    dariLokasi?: string;
   } | null;
 };
 
@@ -601,8 +602,8 @@ export type BiayaItem = {
   cara: CaraItem;
   /** Asal analisa yang dipakai: berkas kontrak atau padanan AHSP PUPR. null = tanpa analisa. */
   sumberAnalisa: SumberAnalisa | null;
-  /** Id templat RAPL bila `sumberAnalisa` = `templat`. */
-  templat: string | null;
+  /** Lokasi asal analisa AI yang dipakai ulang (DECISIONS 807); null = analisa item ini sendiri. */
+  dariLokasi: string | null;
   komponen: KomponenItem[];
   /** Σ biaya komponen yang SUDAH berharga; borongan = harga × volume. */
   biaya: bigint;
@@ -660,7 +661,7 @@ export function hitungItemRapl(items: ItemUntukRapl[], harga: HargaSatuan[]): Bi
       catatanKonversi: it.rincian?.catatanKonversi ?? null,
       hargaBorongan: it.rincian?.hargaBorongan ?? null,
       sumberAnalisa: it.analisa ? (it.analisa.sumber ?? "ahsp") : null,
-      templat: it.analisa?.templat ?? null,
+      dariLokasi: it.analisa?.dariLokasi ?? null,
     };
 
     const pecah = pecahItem(it);

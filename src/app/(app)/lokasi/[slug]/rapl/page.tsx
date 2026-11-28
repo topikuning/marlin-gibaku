@@ -126,6 +126,7 @@ export default async function RaplPage({
       nilaiRab: i.nilaiRab.toString(),
       cara: i.cara,
       sumberAnalisa: i.sumberAnalisa,
+      dariLokasi: i.dariLokasi,
       komponen: i.komponen.map((k) => ({
         kategori: k.kategori,
         nama: k.nama,
@@ -263,7 +264,7 @@ export default async function RaplPage({
         <Banner
           tone="info"
           title="RAPL siap isi harga – sekali klik"
-          description="Seluruh item RAB sudah terurai (analisa kontrak, AHSP, usulan AI, atau templat RAPL) dalam satu Excel. Isi harga sekali per sumber daya di sheet Isi Harga; rincian per item dan rekapitulasi ikut terhitung. Usulan harga lokasi ini (bila sudah diestimasi) ada di sebelahnya, belum ikut jumlah."
+          description="Seluruh item RAB dengan rinciannya (analisa kontrak, AHSP, atau analisa AI yang diterima) dalam satu Excel. Isi harga sekali per sumber daya di sheet Isi Harga; rincian per item dan rekapitulasi ikut terhitung. Item yang belum terurai diberi satu baris harga per satuan untuk diisi. Usulan harga lokasi ini (bila sudah diestimasi) ada di sebelahnya, belum ikut jumlah."
           action={
             <ButtonLink href={`/lokasi/${slug}/rapl/siap-isi`} size="sm" unduhan labelSibuk="Menyiapkan Excel…">
               <Download aria-hidden className="size-3.5" />
@@ -289,7 +290,7 @@ export default async function RaplPage({
         <Banner
           tone="info"
           title="Basis analisa AHSP belum dimuat"
-          description="Item yang tidak punya analisa di berkas kontrak diurai dengan templat RAPL. Padanan AHSP PUPR baru bisa dipakai setelah basisnya dimuat di halaman Sistem."
+          description="Item yang tidak punya analisa di berkas kontrak bisa diurai dengan analisa AI per uraian (Rincian per item → Urai semua item). Padanan AHSP PUPR baru bisa dipakai setelah basisnya dimuat di halaman Sistem."
         />
       ) : basis?.belumSelesai ? (
         <Banner
@@ -469,6 +470,8 @@ export default async function RaplPage({
                     model: analisaAi.model,
                     error: analisaAi.error,
                     jumlahTanpa: analisaAi.jumlahTanpa,
+                    itemTanpa: analisaAi.itemTanpa,
+                    diminta: analisaAi.diminta,
                     nilaiTanpa: analisaAi.nilaiTanpa.toString(),
                     draf: analisaAi.draf.map((d) => ({
                       ...d,

@@ -64,7 +64,6 @@ const ASAL: Record<string, string> = {
   kontrak: "Analisa kontrak",
   ahsp: "AHSP PUPR",
   ai: "Usulan AI – diterima",
-  templat: "Templat RAPL",
 };
 
 /** Asal rincian satu item, untuk kolom "Asal" dan tabel asal di Rekapitulasi. */
@@ -322,7 +321,7 @@ export async function buildRaplSiapIsiXlsx(args: {
         sel(ws, r, 4, it.volume, { fmt: fmtVolume(it.satuan), fill: ABU });
         sel(ws, r, 5, { formula: `IFERROR(F${r}/D${r},0)` }, { fmt: FMT_RP, fill: ABU });
         sel(ws, r, 7, null, { fill: ABU });
-        sel(ws, r, 8, asalItem(it) + (it.templat ? ` (${it.templat})` : ""), { fill: ABU });
+        sel(ws, r, 8, asalItem(it) + (it.dariLokasi ? ` (dari ${it.dariLokasi})` : ""), { fill: ABU });
         sel(ws, r, 9, null, { fill: ABU });
         sel(ws, r, 10, Number(it.nilaiRab), { fmt: FMT_RP, fill: ABU });
         sel(ws, r, 11, { formula: `J${r}-F${r}` }, { fmt: FMT_RP, fill: ABU });
@@ -467,11 +466,11 @@ export async function buildRaplSiapIsiXlsx(args: {
       r++;
     }
     r += 2;
-    // Asal rincian: supaya angka templat tidak terbaca sebagai analisa resmi.
+    // Asal rincian: supaya usulan AI tidak terbaca sebagai analisa resmi.
     ws.getCell(r, 1).value = "ASAL RINCIAN ITEM";
     ws.getCell(r, 1).font = { bold: true };
     r++;
-    const asalUrut = ["Analisa kontrak", "AHSP PUPR", "Usulan AI – diterima", "Templat RAPL", "Dirinci tangan", "Borongan", "Belum terurai"];
+    const asalUrut = ["Analisa kontrak", "AHSP PUPR", "Usulan AI – diterima", "Dirinci tangan", "Borongan", "Belum terurai"];
     judulKolom(ws, r, ["No", "Lokasi", ...asalUrut.map((a) => `${a} (item)`)]);
     r++;
     rekapLokasi.forEach(({ l }, i) => {

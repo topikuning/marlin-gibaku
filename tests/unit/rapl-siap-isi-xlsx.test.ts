@@ -26,8 +26,8 @@ const item = (o: Partial<BiayaItem> & Pick<BiayaItem, "code" | "uraian" | "kompo
   volume: 10,
   nilaiRab: 15_000_000n,
   cara: "ahsp",
-  sumberAnalisa: "templat",
-  templat: "beton20",
+  sumberAnalisa: "ai",
+  dariLokasi: "Bolmut",
   biaya: 0n,
   komponenBelumBerharga: 0,
   lengkap: false,
@@ -74,10 +74,10 @@ const lokasi = (nama: string, hargaSemen: bigint | null, hargaPekerja: bigint, u
           code: "2",
           uraian: "Pasangan batu belah",
           sumberAnalisa: "kontrak",
-          templat: null,
+          dariLokasi: null,
           komponen: [komp({ kategori: "bahan", nama: "Batu belah", satuan: "m3", jumlah: 12, harga: 330_000n, hargaDariKontrak: true })],
         }),
-        item({ code: "3", uraian: "Pekerjaan khusus", cara: "belum", sumberAnalisa: null, templat: null, komponen: [], rinciLewat: "satuan tidak sepadan" }),
+        item({ code: "3", uraian: "Pekerjaan khusus", cara: "belum", sumberAnalisa: null, dariLokasi: null, komponen: [], rinciLewat: "satuan tidak sepadan" }),
       ],
     },
   ],
@@ -155,7 +155,8 @@ describe("RAPL siap isi – dua lokasi satu paket", () => {
     // Baris item: jumlah = Σ komponennya; asal rincian disebut.
     const beton = cariBaris(r, 2, "Beton fc' 20 MPa");
     expect(rumus(r.getCell(beton, 6))).toBe(`SUM(F${beton + 1}:F${beton + 2})`);
-    expect(r.getCell(beton, 8).value).toBe("Templat RAPL (beton20)");
+    // Analisa AI yang dipakai ulang dari uraian sama di lokasi lain menyebut asalnya (DECISIONS 807).
+    expect(r.getCell(beton, 8).value).toBe("Usulan AI – diterima (dari Bolmut)");
   });
 
   it("item yang belum terurai: satu baris harga per satuan berwarna kuning untuk diisi", async () => {

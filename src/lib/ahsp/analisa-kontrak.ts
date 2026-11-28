@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { analisaAktifLokasi } from "@/lib/rab/rincian/sumber-backup";
+import { tandaItem } from "./cocok";
 
 /**
  * ANALISA KONTRAK RAB AKTIF per item (keputusan user 2026-10-06), termasuk
@@ -81,6 +82,50 @@ export async function analisaAiDiterima(locationId: string): Promise<Map<string,
     if (hasil.has(r.lineageKey) || r.komponen.length === 0) continue;
     hasil.set(r.lineageKey, {
       usulanId: r.id,
+      komponen: r.komponen.map((k) => ({ kategori: k.kategori, nama: k.nama, satuan: k.satuan, koefisien: Number(k.koefisien) })),
+    });
+  }
+  return hasil;
+}
+
+/**
+ * Analisa AI yang DITERIMA di lokasi mana pun dalam organisasi yang sama,
+ * per TANDA uraian (DECISIONS 807). Satu uraian cukup diurai dan diperiksa
+ * sekali; RAB berikutnya yang memuat pekerjaan yang sama memakainya.
+ * Yang terbaru menang bila ada lebih dari satu.
+ */
+export type AnalisaAiUraian = AnalisaAiItem & { lokasi: string; locationId: string };
+
+export async function analisaAiOrganisasi(locationId: string, tanda: readonly string[]): Promise<Map<string, AnalisaAiUraian>> {
+  const hasil = new Map<string, AnalisaAiUraian>();
+  if (tanda.length === 0) return hasil;
+  const loc = await db.location.findUnique({ where: { id: locationId }, select: { package: { select: { orgId: true } } } });
+  if (!loc) return hasil;
+  const orgId = loc.package.orgId;
+  // Baris lama (sebelum 807) belum punya tanda: dilengkapi sekali di sini.
+  const lama = await db.raplAnalisaAi.findMany({
+    where: { tanda: null, status: "diterima", location: { package: { orgId } } },
+    select: { id: true, uraian: true, satuan: true },
+  });
+  for (const r of lama) await db.raplAnalisaAi.update({ where: { id: r.id }, data: { tanda: tandaItem(r.uraian, r.satuan) } });
+
+  const rows = await db.raplAnalisaAi.findMany({
+    where: { tanda: { in: [...tanda] }, status: "diterima", location: { package: { orgId } } },
+    orderBy: { diputuskanAt: "desc" },
+    select: {
+      id: true,
+      tanda: true,
+      locationId: true,
+      location: { select: { name: true } },
+      komponen: { orderBy: { urutan: "asc" }, select: { kategori: true, nama: true, satuan: true, koefisien: true } },
+    },
+  });
+  for (const r of rows) {
+    if (!r.tanda || hasil.has(r.tanda) || r.komponen.length === 0) continue;
+    hasil.set(r.tanda, {
+      usulanId: r.id,
+      lokasi: r.location.name,
+      locationId: r.locationId,
       komponen: r.komponen.map((k) => ({ kategori: k.kategori, nama: k.nama, satuan: k.satuan, koefisien: Number(k.koefisien) })),
     });
   }

@@ -24,7 +24,7 @@ const { db } = await import("@/lib/db");
 const { imporAhspDariSeed, AHSP_SOURCE_CODE } = await import("@/lib/ahsp/import");
 const { keadaanPadanan, koreksiPadanan, petakanLokasi, setujuiPadanan, tandaMenunggu } =
   await import("@/lib/ahsp/padanan");
-const { simulasiRapl, itemUntukRapl } = await import("@/lib/ahsp/rapl");
+const { simulasiRapl } = await import("@/lib/ahsp/rapl");
 const { tandaItem } = await import("@/lib/ahsp/cocok");
 
 const suffix = Date.now().toString(36);
@@ -301,16 +301,19 @@ describe("persetujuan borongan → simulasi RAPL", () => {
     const menunggu = await tandaMenunggu(lokasiB);
     expect(menunggu.length).toBeGreaterThan(0);
 
+    const sebelum = await simulasiRapl(lokasiB);
     // Baris beton (kode 4) SUDAH punya padanan otomatis beranalisa lengkap dan
-    // satuannya sepadan; satu-satunya alasan ia tidak memakai AHSP adalah
-    // belum ada yang menyetujuinya. Sejak DECISIONS 802 item tanpa rincian
-    // lain diurai templat RAPL, jadi yang dikunci di sini: usulan yang masih
-    // menunggu TIDAK menjadi analisa – baris itu bersumber templat. (Item lain
-    // boleh ber-AHSP bila padanannya sudah disetujui/dikoreksi orang di uji
-    // sebelumnya – padanan berlaku lintas lokasi.)
-    const sebelum = await itemUntukRapl(lokasiB);
-    expect(sebelum.find((i) => i.code === "4")!.analisa?.sumber).toBe("templat");
-    expect(sebelum.filter((i) => i.analisa?.sumber === "ahsp").map((i) => i.code)).not.toContain("4");
+    // satuannya sepadan — satu-satunya alasan ia tidak menghasilkan kebutuhan
+    // adalah karena belum ada yang menyetujuinya. Menguji lewat "ada baris
+    // ber-alasan belum_disetujui" saja TIDAK cukup: baris "Sewa Rumah" yang
+    // memang tak berpadanan juga ber-alasan sama, sehingga ujinya lolos walau
+    // pagarnya dicabut. Karena itu yang dikunci di sini keluarannya: sebelum
+    // disetujui, tidak boleh ada SATU pun angka kebutuhan.
+    expect(sebelum.kebutuhan).toEqual([]);
+    expect(sebelum.dipakai.baris).toBe(0);
+    expect(sebelum.dilewat.some((d) => d.code === "4" && d.alasan === "belum_disetujui")).toBe(
+      true,
+    );
   }, 120000);
 
   it("menyetujui borongan membuat kebutuhan bahan muncul", async () => {
