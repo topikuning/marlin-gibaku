@@ -63,6 +63,8 @@ import { getDriveCoverage } from "@/lib/gdrive/coverage";
 import { milestoneBoard } from "@/lib/milestones/queries";
 import { SiklusPanel } from "./siklus-panel";
 import { BarisIntegrasi } from "./komunikasi-panel";
+import { EstimasiHargaPaket } from "./estimasi-harga-paket";
+import { ringkasEstimasiPaket } from "@/lib/harga-wilayah/status";
 import { WaKabupatenForm, type BarisKabupaten } from "./wa-kabupaten-form";
 
 export const metadata: Metadata = { title: "Ringkasan Paket" };
@@ -299,6 +301,7 @@ export default async function RingkasanPaketPage({
 
   // Rekonsiliasi: nilai kontrak (INPUT, incl PPN) vs Σ RAB semua lokasi (pra-PPN).
   // Kontrak incl-PPN, RAB pra-PPN (konvensi uang) → banding pada basis pra-PPN.
+  const estimasiHarga = can(user.role, "rapl.view") ? await ringkasEstimasiPaket(pkg.id) : null;
   const recon = (() => {
     if (!contract || running == null) return null;
     // Rekonsiliasi membandingkan nilai kontrak SEUTUHNYA dengan Σ RAB SEMUA
@@ -781,7 +784,31 @@ export default async function RingkasanPaketPage({
                     Periksa kontrak & adendum
                   </ButtonLink>
                   <ButtonLink href={`/paket/${pkg.id}/lokasi`}>Periksa RAB per lokasi</ButtonLink>
+                  {/* RAPL seluruh lokasi paket sekali klik, satu sheet Isi Harga
+                      bersama (DECISIONS 803). Memuat biaya & selisih → rapl.view. */}
+                  {recon.withRab > 0 && can(user.role, "report.export") && can(user.role, "rapl.view") ? (
+                    <ButtonLink href={`/paket/${pkg.id}/rapl-siap-isi`} unduhan labelSibuk="Menyiapkan Excel RAPL…">
+                      Unduh RAPL siap isi ({recon.withRab} lokasi)
+                    </ButtonLink>
+                  ) : null}
+                  {/* Harga semua lokasi sekali klik lewat katalog wilayah (DECISIONS 806). */}
+                  {recon.withRab > 0 && can(user.role, "rapl.manage") && can(user.role, "ai.generate") ? (
+                    <EstimasiHargaPaket packageId={pkg.id} jumlahLokasi={recon.withRab} />
+                  ) : null}
                 </div>
+                {estimasiHarga ? (
+                  <p className="text-[13px] text-ink-muted">
+                    Estimasi harga 3 hari terakhir: {estimasiHarga.selesai} lokasi selesai
+                    {estimasiHarga.berjalan > 0 ? `, ${estimasiHarga.berjalan} sedang berjalan` : ""}
+                    {estimasiHarga.gagal > 0 ? `, ${estimasiHarga.gagal} gagal` : ""}.{" "}
+                    {estimasiHarga.drafMenunggu > 0
+                      ? `${estimasiHarga.drafMenunggu} usulan harga menunggu dipakai di tab RAPL lokasi.`
+                      : ""}{" "}
+                    <Link href="/katalog-harga" className="font-medium text-primary hover:underline">
+                      Lihat katalog harga wilayah
+                    </Link>
+                  </p>
+                ) : null}
 
                 <details>
                   <summary className="cursor-pointer text-[13px] font-medium text-primary hover:underline">

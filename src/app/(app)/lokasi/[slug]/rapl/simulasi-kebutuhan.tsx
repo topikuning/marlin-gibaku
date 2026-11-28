@@ -43,6 +43,9 @@ const LABEL: Record<string, string> = {
   upah: "Upah",
   alat: "Alat",
   fasilitas: "Fasilitas",
+  // Kategori jasa & biaya umum (DECISIONS 802) – tetap dipakai analisa lain.
+  jasa: "Jasa & biaya resmi",
+  umum: "Biaya umum",
 };
 
 const ALASAN_LABEL: Record<string, string> = {

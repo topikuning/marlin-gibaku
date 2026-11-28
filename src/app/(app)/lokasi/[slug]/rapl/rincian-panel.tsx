@@ -63,6 +63,8 @@ export type ItemRaplRow = {
   komponenBelumBerharga: number;
   /** Asal analisa: berkas kontrak (dasar utama), padanan AHSP PUPR, atau usulan AI yang diterima. */
   sumberAnalisa: "kontrak" | "ahsp" | "ai" | null;
+  /** Lokasi asal analisa AI yang dipakai ulang (DECISIONS 807). */
+  dariLokasi: string | null;
   lengkap: boolean;
   margin: string | null;
   marginPersen: number | null;
@@ -166,7 +168,7 @@ export function RincianPanel({
         // keduanya sumber yang berbeda (keputusan user 2026-10-06).
         caraLabel:
           i.sumberAnalisa !== null && i.sumberAnalisa !== "ahsp" && (i.cara === "ahsp" || i.cara === "campuran")
-            ? `${LABEL_SUMBER[i.sumberAnalisa]}${i.cara === "campuran" ? " + tambahan" : ""}`
+            ? `${LABEL_SUMBER[i.sumberAnalisa]}${i.dariLokasi ? ` – dari ${i.dariLokasi}` : ""}${i.cara === "campuran" ? " + tambahan" : ""}`
             : (LABEL_CARA[i.cara] ?? i.cara),
         keteranganl:
           i.alasanLewat !== null
@@ -403,7 +405,9 @@ export function RincianPanel({
                   {dibuka.sumberAnalisa === "kontrak"
                     ? "Koefisien analisa kontrak diambil dari berkas RAB dan tidak bisa diubah di sini. "
                     : dibuka.sumberAnalisa === "ai"
-                      ? "Koefisien ini usulan AI yang sudah diterima, bukan angka resmi. Untuk menggantinya, cabut usulannya di bagian Draf analisa AI. "
+                      ? dibuka.dariLokasi
+                        ? `Koefisien ini usulan AI yang diterima untuk uraian yang sama di ${dibuka.dariLokasi}, dipakai ulang di sini. Bukan angka resmi. `
+                        : "Koefisien ini usulan AI yang sudah diterima, bukan angka resmi. Untuk menggantinya, cabut usulannya di bagian Draf analisa AI. "
                       : "Koefisien bertanda AHSP tidak bisa diubah, karena itu angka resmi yang harus bisa dipertanggungjawabkan saat diperiksa. "}
                   Yang bisa Anda lakukan: menambah komponen yang belum ada.
                 </p>

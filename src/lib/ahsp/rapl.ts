@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { normalisasiSatuan } from "./cocok";
 import { itemRabAktif, metodeDisetujui } from "./padanan";
-import { analisaAiDiterima, analisaKontrakLokasi } from "./analisa-kontrak";
+import { analisaAiDiterima, analisaAiOrganisasi, analisaKontrakLokasi } from "./analisa-kontrak";
 import {
   agregasiKebutuhan,
   hitungItemRapl,
@@ -38,7 +38,7 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
   if (items.length === 0) return [];
   const tanda = [...new Set(items.map((i) => i.tanda))];
 
-  const [padanan, rincian, petaKontrak, petaAi] = await Promise.all([
+  const [padanan, rincian, petaKontrak, petaAi, petaAiUraian] = await Promise.all([
     tanda.length
       ? db.ahspPadanan.findMany({
           where: { tanda: { in: tanda }, entryId: { not: null } },
@@ -81,6 +81,9 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
      */
     analisaKontrakLokasi(locationId),
     analisaAiDiterima(locationId),
+    // Analisa AI yang diterima untuk URAIAN yang sama di lokasi mana pun
+    // dalam organisasi (DECISIONS 807): rincian per uraian, dipakai ulang.
+    analisaAiOrganisasi(locationId, tanda),
   ]);
 
   // Hanya padanan yang sudah ada yang menyetujui yang boleh menjadi angka.
@@ -101,6 +104,7 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
     const k = petaKontrak.get(it.lineageKey);
     const komponenKontrak = k?.komponen ?? [];
     const ai = petaAi.get(it.lineageKey);
+    const aiUraian = ai ? undefined : petaAiUraian.get(it.tanda);
     return {
       lineageKey: it.lineageKey,
       code: it.code,
@@ -162,7 +166,21 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
             satuanNorm: normalisasiSatuan(it.unit),
             komponen: ai.komponen,
           }
-        : null,
+        : aiUraian
+        ? {
+            // Uraian yang sama sudah diurai dan DITERIMA di lokasi lain
+            // (DECISIONS 807): dipakai ulang, dengan asal disebut.
+            sumber: "ai" as const,
+            kode: "Usulan AI",
+            ...(aiUraian.locationId === locationId ? {} : { dariLokasi: aiUraian.lokasi }),
+            uraian: it.name,
+            satuanNorm: normalisasiSatuan(it.unit),
+            komponen: aiUraian.komponen,
+          }
+        : // Belum ada analisa dari mana pun: BELUM TERURAI, tidak ditebak
+          // (templat prototipe dicabut, DECISIONS 807). Diurai lewat
+          // "Urai semua item" – analisa AI per uraian.
+          null,
     };
   });
 }

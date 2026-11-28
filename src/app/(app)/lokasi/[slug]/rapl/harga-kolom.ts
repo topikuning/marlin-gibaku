@@ -27,6 +27,9 @@ export const LABEL_KATEGORI: Record<string, string> = {
   upah: "Upah",
   alat: "Alat",
   fasilitas: "Fasilitas",
+  // Kategori jasa & biaya umum (DECISIONS 802) – tetap dipakai analisa lain.
+  jasa: "Jasa & biaya resmi",
+  umum: "Biaya umum",
 };
 
 export type BarisHargaRow = {

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Download, Printer } from "lucide-react";
 import {
   Banner,
@@ -125,6 +126,7 @@ export default async function RaplPage({
       nilaiRab: i.nilaiRab.toString(),
       cara: i.cara,
       sumberAnalisa: i.sumberAnalisa,
+      dariLokasi: i.dariLokasi,
       komponen: i.komponen.map((k) => ({
         kategori: k.kategori,
         nama: k.nama,
@@ -253,6 +255,25 @@ export default async function RaplPage({
 
   return (
     <div className="space-y-4">
+      {/*
+        SEKALI KLIK (DECISIONS 803) – permintaan user 2026-11-28: "rapl itu
+        sekali klik jadi file siap download … yang tinggal isi harga tiap item
+        breakdown". Biaya & selisih ikut di berkasnya, jadi pintunya rapl.view.
+      */}
+      {adaRab && canExport && canSeeMargin ? (
+        <Banner
+          tone="info"
+          title="RAPL siap isi harga – sekali klik"
+          description="Seluruh item RAB dengan rinciannya (analisa kontrak, AHSP, atau analisa AI yang diterima) dalam satu Excel. Isi harga sekali per sumber daya di sheet Isi Harga; rincian per item dan rekapitulasi ikut terhitung. Item yang belum terurai diberi satu baris harga per satuan untuk diisi. Usulan harga lokasi ini (bila sudah diestimasi) ada di sebelahnya, belum ikut jumlah."
+          action={
+            <ButtonLink href={`/lokasi/${slug}/rapl/siap-isi`} size="sm" unduhan labelSibuk="Menyiapkan Excel…">
+              <Download aria-hidden className="size-3.5" />
+              Unduh RAPL siap isi
+            </ButtonLink>
+          }
+        />
+      ) : null}
+
       {itemKontrak > 0 ? (
         <Banner
           tone="info"
@@ -267,9 +288,9 @@ export default async function RaplPage({
 
       {!basis && cakupan.item > 0 ? (
         <Banner
-          tone="warning"
+          tone="info"
           title="Basis analisa AHSP belum dimuat"
-          description="Tanpa basis AHSP, item yang tidak punya analisa di berkas kontrak belum bisa diurai menjadi kebutuhan bahan dan upah. Muat dulu di halaman Sistem."
+          description="Item yang tidak punya analisa di berkas kontrak bisa diurai dengan analisa AI per uraian (Rincian per item → Urai semua item). Padanan AHSP PUPR baru bisa dipakai setelah basisnya dimuat di halaman Sistem."
         />
       ) : basis?.belumSelesai ? (
         <Banner
@@ -449,6 +470,8 @@ export default async function RaplPage({
                     model: analisaAi.model,
                     error: analisaAi.error,
                     jumlahTanpa: analisaAi.jumlahTanpa,
+                    itemTanpa: analisaAi.itemTanpa,
+                    diminta: analisaAi.diminta,
                     nilaiTanpa: analisaAi.nilaiTanpa.toString(),
                     draf: analisaAi.draf.map((d) => ({
                       ...d,
@@ -494,7 +517,7 @@ export default async function RaplPage({
           <>
             <CardHeader
               title="Kebutuhan proyek & harga satuan"
-              subtitle={`${harga.baris.length} komponen dari RAB aktif · isi harga sendiri, atau minta draf perkiraan AI untuk harga yang masih kosong.`}
+              subtitle={`${harga.baris.length} komponen dari RAB aktif · isi harga sendiri, atau estimasikan semua harga untuk lokasi ini sekali klik lalu pakai yang Anda setujui.`}
               action={
                 // Unduhannya memuat kolom margin – ikut `rapl.view`, bukan hanya export.
                 canExport && canSeeMargin ? (
@@ -507,11 +530,18 @@ export default async function RaplPage({
             />
             <CardBody className="space-y-4">
               {ringkasanBiaya}
-              <Kenapa judul="Bagaimana harga manual, AI, dan rekomendasi dipakai?">
-                Harga yang Anda isi langsung tersimpan sebagai HSD lokasi. AI hanya membuat draf untuk
-                komponen yang kosong. Drafnya tersimpan di server, jadi tidak hilang saat Anda pindah
-                tab, dan baru masuk hitungan setelah Anda mencentangnya lalu menekan Pakai. Harga dari
-                lokasi lain juga hanya referensi. Semua sumber harga terlihat di tabel.
+              <Kenapa judul="Dari mana usulan harga datang?">
+                Harga yang Anda isi langsung tersimpan sebagai HSD lokasi. &ldquo;Estimasi semua
+                harga&rdquo; mengusulkan harga untuk yang masih kosong, berurutan: harga yang diisi
+                orang di lokasi lain sekabupaten, lalu katalog harga wilayah, lalu riset baru. Riset
+                mencari harga di web untuk kabupaten ini bila provider AI-nya Claude, dan alamat
+                sumbernya dicatat; bila sumber tidak ditemukan, usulannya ditandai estimasi AI. Hasil
+                riset disimpan di{" "}
+                <Link href="/katalog-harga" className="font-medium text-primary hover:underline">
+                  katalog harga wilayah
+                </Link>{" "}
+                dan dipakai lagi oleh lokasi sekabupaten. Semua usulan baru masuk hitungan setelah
+                Anda memakainya.
               </Kenapa>
               <HargaPanel
                 locationId={location.id}

@@ -38,6 +38,7 @@ export const RUTE_STATIS: { pola: string; nama: string }[] = [
   { pola: "/foto-cepat", nama: "Foto Cepat" },
   { pola: "/hari-ini", nama: "Hari Ini (mandor)" },
   { pola: "/kawal", nama: "Kawal KNMP – perbandingan progres" },
+  { pola: "/katalog-harga", nama: "Katalog harga wilayah (RAPL)" },
   { pola: "/kawal/pencocokan", nama: "Kawal KNMP – pencocokan lokasi" },
   { pola: "/kendala", nama: "Papan kendala terpusat" },
   { pola: "/kontak-wa", nama: "Kontak WhatsApp" },

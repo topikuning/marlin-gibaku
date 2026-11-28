@@ -245,6 +245,9 @@ export const RUTE_BUKAN_WILAYAH: Record<string, string> = {
     "RAPL: kebutuhan & biaya bahan/upah hasil analisis AHSP. Formulanya kanonik " +
     "(`ahsp/rapl-calc.ts`) tetapi belum punya jalur AI, dan menjawabnya setengah " +
     "jadi lebih buruk daripada mengaku belum bisa.",
+  "katalog-harga":
+    "Katalog harga wilayah – rujukan harga pasar per kabupaten hasil riset web/AI untuk RAPL, " +
+    "bukan keadaan pekerjaan maupun harga resmi (DECISIONS 806). Menjawabnya sebagai fakta MARLIN menyesatkan.",
 };
 
 /**

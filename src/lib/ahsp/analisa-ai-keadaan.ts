@@ -39,15 +39,17 @@ export type KeadaanAnalisaAi = {
   model: string | null;
   error: string | null;
   diminta: number;
-  /** Item yang belum punya cara hitung apa pun, dan nilai RAB-nya. */
+  /** URAIAN (tanda unik) yang belum punya cara hitung apa pun (DECISIONS 807). */
   jumlahTanpa: number;
+  /** Item yang belum punya cara hitung apa pun, dan nilai RAB-nya. */
+  itemTanpa: number;
   nilaiTanpa: bigint;
   draf: DrafAnalisaView[];
   diterima: { id: string; lineageKey: string; code: string; uraian: string; komponen: number; pada: Date; oleh: string | null }[];
 };
 
 export async function keadaanAnalisaAi(locationId: string): Promise<KeadaanAnalisaAi> {
-  const [run, cfg, { tanpa }, draf, diterima, hsd, kontrak] = await Promise.all([
+  const [run, cfg, { tanpa, itemTanpa, nilaiTanpa }, draf, diterima, hsd, kontrak] = await Promise.all([
     db.raplAnalisaAiRun.findFirst({
       where: { locationId },
       orderBy: { createdAt: "desc" },
@@ -124,7 +126,8 @@ export async function keadaanAnalisaAi(locationId: string): Promise<KeadaanAnali
     error: run?.errorMessage ?? null,
     diminta: run?.diminta ?? 0,
     jumlahTanpa: tanpa.length,
-    nilaiTanpa: tanpa.reduce((a, t) => a + t.amount, 0n),
+    itemTanpa,
+    nilaiTanpa,
     draf: draf.map((d) => {
       const n = perLk.get(d.lineageKey);
       const b = biayaPer.get(d.id);

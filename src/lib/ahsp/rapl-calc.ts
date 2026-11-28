@@ -73,6 +73,14 @@ export type RincianItem = {
   tambahan: KomponenUntukRapl[];
 };
 
+/**
+ * Asal rincian item: `kontrak` (analisa di berkas RAB), `ahsp` (padanan PUPR
+ * disetujui), `ai` (analisa AI yang diterima – untuk item ini, atau untuk
+ * uraian yang sama di lokasi lain, DECISIONS 807). Templat prototipe tidak
+ * lagi menjadi sumber (dicabut 807).
+ */
+export type SumberAnalisa = "kontrak" | "ahsp" | "ai";
+
 export type ItemUntukRapl = {
   lineageKey: string;
   code: string;
@@ -106,7 +114,9 @@ export type ItemUntukRapl = {
      * AHSP PUPR yang disetujui, hanya untuk item tanpa analisa di berkas.
      * Kosong = `ahsp` (data lama).
      */
-    sumber?: "kontrak" | "ahsp" | "ai";
+    sumber?: SumberAnalisa;
+    /** Nama lokasi asal bila analisa AI ini dipakai ulang dari uraian yang sama di lokasi lain (DECISIONS 807). */
+    dariLokasi?: string;
   } | null;
 };
 
@@ -201,7 +211,7 @@ const SKALA = 10 ** DESIMAL_KEBUTUHAN;
  * bukan hilang — terbitan berkas bisa menambah kategori kapan saja, dan yang
  * pertama kali terjadi (`fasilitas`, terbitan 5.0) nyaris lolos tanpa terlihat.
  */
-const URUTAN_KATEGORI: Record<string, number> = { upah: 0, bahan: 1, alat: 2, fasilitas: 3 };
+const URUTAN_KATEGORI: Record<string, number> = { upah: 0, bahan: 1, alat: 2, fasilitas: 3, jasa: 4, umum: 5 };
 
 
 /**
@@ -591,7 +601,9 @@ export type BiayaItem = {
   nilaiRab: bigint;
   cara: CaraItem;
   /** Asal analisa yang dipakai: berkas kontrak atau padanan AHSP PUPR. null = tanpa analisa. */
-  sumberAnalisa: "kontrak" | "ahsp" | "ai" | null;
+  sumberAnalisa: SumberAnalisa | null;
+  /** Lokasi asal analisa AI yang dipakai ulang (DECISIONS 807); null = analisa item ini sendiri. */
+  dariLokasi: string | null;
   komponen: KomponenItem[];
   /** Σ biaya komponen yang SUDAH berharga; borongan = harga × volume. */
   biaya: bigint;
@@ -649,6 +661,7 @@ export function hitungItemRapl(items: ItemUntukRapl[], harga: HargaSatuan[]): Bi
       catatanKonversi: it.rincian?.catatanKonversi ?? null,
       hargaBorongan: it.rincian?.hargaBorongan ?? null,
       sumberAnalisa: it.analisa ? (it.analisa.sumber ?? "ahsp") : null,
+      dariLokasi: it.analisa?.dariLokasi ?? null,
     };
 
     const pecah = pecahItem(it);

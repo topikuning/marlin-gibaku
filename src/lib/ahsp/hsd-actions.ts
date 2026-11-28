@@ -164,6 +164,17 @@ export async function simpanHargaSel(args: {
 
 const SUMBER_MANUAL = "Input manual";
 const SUMBER_AI = "Usulan AI – disetujui pengguna";
+/** Asal usulan yang dipakai (DECISIONS 806) – supaya HSD tidak terbaca sebagai survei. */
+const SUMBER_WEB = "Harga web (katalog wilayah) – disetujui pengguna";
+const SUMBER_LAPANGAN = "Harga lapangan sekabupaten – disetujui pengguna";
+const sumberDari = (metode: string | null) =>
+  metode === "web" ? SUMBER_WEB : metode === "lapangan" ? SUMBER_LAPANGAN : SUMBER_AI;
+/** Alamat sumber web ditulis di catatan HSD – jejak yang bisa dibuka ulang. */
+function catatanSumber(sumber: unknown): string | null {
+  if (!Array.isArray(sumber)) return null;
+  const url = (sumber as { url?: unknown }[]).map((x) => x?.url).filter((u): u is string => typeof u === "string");
+  return url.length > 0 ? `Sumber: ${url.join(" ; ")}`.slice(0, 1_000) : null;
+}
 
 const mintaSkema = z.object({
   locationId: z.uuid(),
@@ -209,6 +220,9 @@ export async function mintaUsulanHargaAiAction(args: {
 
     const { siapkanTargetHarga } = await import("./hsd-ai");
     const dipilih = d.dipilih && d.dipilih.length > 0 ? new Set(d.dipilih) : undefined;
+    // Tanpa centang = ESTIMASI SEMUA harga yang masih kosong, berputar per 25
+    // sampai habis (DECISIONS 805). Dengan centang = hanya yang dicentang.
+    const semua = !dipilih;
     const siap = await siapkanTargetHarga(d.locationId, dipilih);
     if ("error" in siap) return { ok: false, error: siap.error };
 
@@ -233,7 +247,7 @@ export async function mintaUsulanHargaAiAction(args: {
         locationId: d.locationId,
         status: "menunggu",
         pendingSince: penanda,
-        diminta: siap.target.length,
+        diminta: semua ? siap.totalKosong : siap.target.length,
         totalKosong: siap.totalKosong,
         requestedById: user.id,
       },
@@ -244,6 +258,7 @@ export async function mintaUsulanHargaAiAction(args: {
       diminta: siap.target.length,
       totalKosong: siap.totalKosong,
       dicentangPengguna: dipilih ? dipilih.size : 0,
+      semua,
     });
 
     const { mulaiUsulanHargaLatar } = await import("./hsd-ai-latar");
@@ -252,10 +267,11 @@ export async function mintaUsulanHargaAiAction(args: {
       penanda,
       locationId: d.locationId,
       dipilih: d.dipilih,
+      semua,
     });
 
     revalidatePath(`/lokasi/${d.slug}/rapl`);
-    return { ok: true, runId: run.id, diminta: siap.target.length, totalKosong: siap.totalKosong };
+    return { ok: true, runId: run.id, diminta: semua ? siap.totalKosong : siap.target.length, totalKosong: siap.totalKosong };
   } catch (err) {
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
     return { ok: false, error: err instanceof Error ? err.message : "Gagal meminta usulan harga AI." };
@@ -265,8 +281,8 @@ export async function mintaUsulanHargaAiAction(args: {
 const putusanSkema = z.object({
   locationId: z.uuid(),
   slug: z.string().min(1).max(200),
-  /** ID baris `HsdUsulanAi` — BUKAN angka harganya. */
-  ids: z.array(z.uuid()).min(1).max(200),
+  /** ID baris `HsdUsulanAi` — BUKAN angka harganya. Sampai 2.000: "Pakai semua usulan" (DECISIONS 805). */
+  ids: z.array(z.uuid()).min(1).max(2000),
 });
 
 /**
@@ -302,7 +318,7 @@ export async function terapkanUsulanHargaAiAction(args: {
 
     const draf = await db.hsdUsulanAi.findMany({
       where: { id: { in: d.ids }, status: "draf", run: { locationId: d.locationId } },
-      select: { id: true, kategori: true, nama: true, satuan: true, harga: true },
+      select: { id: true, kategori: true, nama: true, satuan: true, harga: true, metode: true, sumber: true },
     });
     if (draf.length === 0) {
       return { ok: false, error: "Tidak ada draf yang bisa diterapkan. Mungkin sudah diputuskan sebelumnya." };
@@ -338,10 +354,11 @@ export async function terapkanUsulanHargaAiAction(args: {
             nama: u.nama,
             satuan: u.satuan,
             harga: u.harga,
-            sumber: SUMBER_AI,
+            sumber: sumberDari(u.metode),
+            catatan: catatanSumber(u.sumber),
             updatedById: user.id,
           },
-          update: { harga: u.harga, sumber: SUMBER_AI, updatedById: user.id },
+          update: { harga: u.harga, sumber: sumberDari(u.metode), catatan: catatanSumber(u.sumber), updatedById: user.id },
         });
       }
       await tx.hsdUsulanAi.updateMany({
@@ -361,7 +378,8 @@ export async function terapkanUsulanHargaAiAction(args: {
         },
         ip,
       );
-    });
+      // "Pakai semua usulan" bisa ratusan baris sekali jalan (DECISIONS 805).
+    }, { timeout: 60_000 });
     revalidatePath(`/lokasi/${d.slug}/rapl`);
 
     const sesudah = await keadaanHarga(d.locationId);

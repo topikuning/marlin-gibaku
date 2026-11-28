@@ -39,8 +39,11 @@ const JUDUL_KATEGORI: Record<string, string> = {
   upah: "UPAH / TENAGA KERJA",
   alat: "PERALATAN",
   fasilitas: "FASILITAS",
+  // Kategori jasa & biaya umum (DECISIONS 802) – tetap dipakai analisa lain.
+  jasa: "JASA, SUBKON DAN BIAYA RESMI",
+  umum: "BIAYA UMUM LAPANGAN",
 };
-const URUTAN_KATEGORI = ["bahan", "upah", "alat", "fasilitas"];
+const URUTAN_KATEGORI = ["bahan", "upah", "alat", "fasilitas", "jasa", "umum"];
 
 function urutKategori(kebutuhan: { kategori: string }[]): string[] {
   const ada = [...new Set(kebutuhan.map((k) => k.kategori))];
