@@ -74,7 +74,7 @@ urutannya dibuktikan sama.
 
 ### Menambah keputusan baru
 
-1. Tulis entrinya di **arsip nomor tertinggi** (`docs/decisions/701-800.md`),
+1. Tulis entrinya di **arsip nomor tertinggi** (`docs/decisions/801-900.md`),
    judulnya `## (baru) · Judul (YYYY-MM-DD)` — tetap **tanpa memilih nomor**.
 2. Pemeriksa terakhir memberi nomornya saat merge, lalu menambahkan **satu
    baris** ke tabel di bawah.
@@ -89,6 +89,12 @@ hilang.
 ---
 
 ## Indeks keputusan (terbaru di atas)
+
+### [801-900](./decisions/801-900.md)
+
+| # | Tanggal | Keputusan |
+|---|---|---|
+| 801 | 2026-11-28 | RAPL: mesin templat pengurai item RAB ditulis ulang dari prototipe referensi user (145 templat, 200 sumber daya, aturan pengenal berurutan); harga acuan dan perkiraan dari RAB dipisah sebagai rujukan, bukan harga dipakai; 376/376 uraian keluaran prototipe terurai sama persis |
 
 ### [701-800](./decisions/701-800.md)
 

@@ -1,0 +1,1602 @@
+[
+ {
+  "kunci": "semen",
+  "nama": "Semen Portland komposit 50 kg",
+  "satuan": "zak",
+  "hargaAcuan": 88000,
+  "kategori": "Bahan",
+  "kelompok": "Semen, Pasir, Batu dan Agregat"
+ },
+ {
+  "kunci": "pasir",
+  "nama": "Pasir pasang/beton",
+  "satuan": "m³",
+  "hargaAcuan": 300000,
+  "kategori": "Bahan",
+  "kelompok": "Semen, Pasir, Batu dan Agregat"
+ },
+ {
+  "kunci": "split",
+  "nama": "Batu pecah 2/3 (split)",
+  "satuan": "m³",
+  "hargaAcuan": 420000,
+  "kategori": "Bahan",
+  "kelompok": "Semen, Pasir, Batu dan Agregat"
+ },
+ {
+  "kunci": "batu_belah",
+  "nama": "Batu belah",
+  "satuan": "m³",
+  "hargaAcuan": 320000,
+  "kategori": "Bahan",
+  "kelompok": "Semen, Pasir, Batu dan Agregat"
+ },
+ {
+  "kunci": "batu_kosong",
+  "nama": "Batu kosong (aanstamping)",
+  "satuan": "m³",
+  "hargaAcuan": 290000,
+  "kategori": "Bahan",
+  "kelompok": "Semen, Pasir, Batu dan Agregat"
+ },
+ {
+  "kunci": "makadam",
+  "nama": "Batu pecah makadam",
+  "satuan": "m³",
+  "hargaAcuan": 380000,
+  "kategori": "Bahan",
+  "kelompok": "Semen, Pasir, Batu dan Agregat"
+ },
+ {
+  "kunci": "sirtu",
+  "nama": "Sirtu (pasir batu)",
+  "satuan": "m³",
+  "hargaAcuan": 240000,
+  "kategori": "Bahan",
+  "kelompok": "Semen, Pasir, Batu dan Agregat"
+ },
+ {
+  "kunci": "air",
+  "nama": "Air kerja",
+  "satuan": "m³",
+  "hargaAcuan": 40000,
+  "kategori": "Bahan",
+  "kelompok": "Semen, Pasir, Batu dan Agregat"
+ },
+ {
+  "kunci": "bata",
+  "nama": "Bata merah press",
+  "satuan": "bh",
+  "hargaAcuan": 1100,
+  "kategori": "Bahan",
+  "kelompok": "Semen, Pasir, Batu dan Agregat"
+ },
+ {
+  "kunci": "batako",
+  "nama": "Batako 10x20x40",
+  "satuan": "bh",
+  "hargaAcuan": 4500,
+  "kategori": "Bahan",
+  "kelompok": "Semen, Pasir, Batu dan Agregat"
+ },
+ {
+  "kunci": "pasir_urug",
+  "nama": "Pasir urug",
+  "satuan": "m³",
+  "hargaAcuan": 200000,
+  "kategori": "Bahan",
+  "kelompok": "Tanah dan Material Urugan"
+ },
+ {
+  "kunci": "tanah",
+  "nama": "Tanah urug (harga di quarry)",
+  "satuan": "m³",
+  "hargaAcuan": 100000,
+  "kategori": "Bahan",
+  "kelompok": "Tanah dan Material Urugan"
+ },
+ {
+  "kunci": "geotex",
+  "nama": "Geotextile non-woven",
+  "satuan": "m²",
+  "hargaAcuan": 14000,
+  "kategori": "Bahan",
+  "kelompok": "Tanah dan Material Urugan"
+ },
+ {
+  "kunci": "d6",
+  "nama": "Besi beton polos Ø6 mm",
+  "satuan": "kg",
+  "hargaAcuan": 13500,
+  "kategori": "Bahan",
+  "kelompok": "Besi dan Kawat"
+ },
+ {
+  "kunci": "d8",
+  "nama": "Besi beton polos Ø8 mm",
+  "satuan": "kg",
+  "hargaAcuan": 13500,
+  "kategori": "Bahan",
+  "kelompok": "Besi dan Kawat"
+ },
+ {
+  "kunci": "d10",
+  "nama": "Besi beton ulir D10 mm",
+  "satuan": "kg",
+  "hargaAcuan": 14500,
+  "kategori": "Bahan",
+  "kelompok": "Besi dan Kawat"
+ },
+ {
+  "kunci": "d13",
+  "nama": "Besi beton ulir D13 mm",
+  "satuan": "kg",
+  "hargaAcuan": 14500,
+  "kategori": "Bahan",
+  "kelompok": "Besi dan Kawat"
+ },
+ {
+  "kunci": "d16",
+  "nama": "Besi beton ulir D16 mm",
+  "satuan": "kg",
+  "hargaAcuan": 14800,
+  "kategori": "Bahan",
+  "kelompok": "Besi dan Kawat"
+ },
+ {
+  "kunci": "d25",
+  "nama": "Besi beton ulir D25 mm",
+  "satuan": "kg",
+  "hargaAcuan": 15000,
+  "kategori": "Bahan",
+  "kelompok": "Besi dan Kawat"
+ },
+ {
+  "kunci": "kawat",
+  "nama": "Kawat bendrat",
+  "satuan": "kg",
+  "hargaAcuan": 24000,
+  "kategori": "Bahan",
+  "kelompok": "Besi dan Kawat"
+ },
+ {
+  "kunci": "kaso",
+  "nama": "Kayu kaso 5/7 kelas III",
+  "satuan": "m³",
+  "hargaAcuan": 4500000,
+  "kategori": "Bahan",
+  "kelompok": "Kayu dan Bekisting"
+ },
+ {
+  "kunci": "papan",
+  "nama": "Papan kayu 2/20 kelas III",
+  "satuan": "m³",
+  "hargaAcuan": 4000000,
+  "kategori": "Bahan",
+  "kelompok": "Kayu dan Bekisting"
+ },
+ {
+  "kunci": "balok",
+  "nama": "Balok kayu 8/12 kelas III",
+  "satuan": "m³",
+  "hargaAcuan": 5000000,
+  "kategori": "Bahan",
+  "kelompok": "Kayu dan Bekisting"
+ },
+ {
+  "kunci": "multi",
+  "nama": "Multipleks 12 mm 122x244",
+  "satuan": "lbr",
+  "hargaAcuan": 175000,
+  "kategori": "Bahan",
+  "kelompok": "Kayu dan Bekisting"
+ },
+ {
+  "kunci": "triplek",
+  "nama": "Triplek 9 mm 122x244",
+  "satuan": "lbr",
+  "hargaAcuan": 105000,
+  "kategori": "Bahan",
+  "kelompok": "Kayu dan Bekisting"
+ },
+ {
+  "kunci": "paku",
+  "nama": "Paku campuran 2\"-5\"",
+  "satuan": "kg",
+  "hargaAcuan": 24000,
+  "kategori": "Bahan",
+  "kelompok": "Kayu dan Bekisting"
+ },
+ {
+  "kunci": "minyak",
+  "nama": "Minyak bekisting",
+  "satuan": "ltr",
+  "hargaAcuan": 22000,
+  "kategori": "Bahan",
+  "kelompok": "Kayu dan Bekisting"
+ },
+ {
+  "kunci": "dolken",
+  "nama": "Kayu dolken Ø6-8 cm panjang 4 m",
+  "satuan": "m¹",
+  "hargaAcuan": 15000,
+  "kategori": "Bahan",
+  "kelompok": "Kayu dan Bekisting"
+ },
+ {
+  "kunci": "seng",
+  "nama": "Seng gelombang BJLS 0,20",
+  "satuan": "m²",
+  "hargaAcuan": 70000,
+  "kategori": "Bahan",
+  "kelompok": "Kayu dan Bekisting"
+ },
+ {
+  "kunci": "c75",
+  "nama": "Baja ringan C75.75 (6 m)",
+  "satuan": "btg",
+  "hargaAcuan": 95000,
+  "kategori": "Bahan",
+  "kelompok": "Atap dan Plafon"
+ },
+ {
+  "kunci": "reng",
+  "nama": "Reng baja ringan R32 0,45 (6 m)",
+  "satuan": "btg",
+  "hargaAcuan": 56000,
+  "kategori": "Bahan",
+  "kelompok": "Atap dan Plafon"
+ },
+ {
+  "kunci": "sekrup",
+  "nama": "Sekrup baja ringan/atap",
+  "satuan": "bh",
+  "hargaAcuan": 900,
+  "kategori": "Bahan",
+  "kelompok": "Atap dan Plafon"
+ },
+ {
+  "kunci": "spandek",
+  "nama": "Spandek pasir 0,45 mm",
+  "satuan": "m²",
+  "hargaAcuan": 150000,
+  "kategori": "Bahan",
+  "kelompok": "Atap dan Plafon"
+ },
+ {
+  "kunci": "nok",
+  "nama": "Nok spandek pasir",
+  "satuan": "m¹",
+  "hargaAcuan": 90000,
+  "kategori": "Bahan",
+  "kelompok": "Atap dan Plafon"
+ },
+ {
+  "kunci": "grc6",
+  "nama": "GRC board 6 mm 120x240",
+  "satuan": "lbr",
+  "hargaAcuan": 115000,
+  "kategori": "Bahan",
+  "kelompok": "Atap dan Plafon"
+ },
+ {
+  "kunci": "grc8",
+  "nama": "GRC board 8 mm 120x240",
+  "satuan": "lbr",
+  "hargaAcuan": 150000,
+  "kategori": "Bahan",
+  "kelompok": "Atap dan Plafon"
+ },
+ {
+  "kunci": "hollow",
+  "nama": "Hollow galvalum 40x40 t=0,4 (4 m)",
+  "satuan": "btg",
+  "hargaAcuan": 55000,
+  "kategori": "Bahan",
+  "kelompok": "Atap dan Plafon"
+ },
+ {
+  "kunci": "hollow2",
+  "nama": "Hollow galvalum 20x40 t=0,4 (4 m)",
+  "satuan": "btg",
+  "hargaAcuan": 40000,
+  "kategori": "Bahan",
+  "kelompok": "Atap dan Plafon"
+ },
+ {
+  "kunci": "cat_luar",
+  "nama": "Cat tembok eksterior",
+  "satuan": "ltr",
+  "hargaAcuan": 125000,
+  "kategori": "Bahan",
+  "kelompok": "Pasangan, Keramik dan Finishing"
+ },
+ {
+  "kunci": "sealer",
+  "nama": "Cat dasar (sealer)",
+  "satuan": "ltr",
+  "hargaAcuan": 75000,
+  "kategori": "Bahan",
+  "kelompok": "Pasangan, Keramik dan Finishing"
+ },
+ {
+  "kunci": "cat_dalam",
+  "nama": "Cat tembok interior",
+  "satuan": "ltr",
+  "hargaAcuan": 60000,
+  "kategori": "Bahan",
+  "kelompok": "Pasangan, Keramik dan Finishing"
+ },
+ {
+  "kunci": "cat_plafon",
+  "nama": "Cat plafon",
+  "satuan": "ltr",
+  "hargaAcuan": 55000,
+  "kategori": "Bahan",
+  "kelompok": "Pasangan, Keramik dan Finishing"
+ },
+ {
+  "kunci": "plamir",
+  "nama": "Plamir/wall filler",
+  "satuan": "kg",
+  "hargaAcuan": 28000,
+  "kategori": "Bahan",
+  "kelompok": "Pasangan, Keramik dan Finishing"
+ },
+ {
+  "kunci": "amplas",
+  "nama": "Amplas",
+  "satuan": "lbr",
+  "hargaAcuan": 4000,
+  "kategori": "Bahan",
+  "kelompok": "Pasangan, Keramik dan Finishing"
+ },
+ {
+  "kunci": "tekstur",
+  "nama": "Cat tekstur",
+  "satuan": "kg",
+  "hargaAcuan": 38000,
+  "kategori": "Bahan",
+  "kelompok": "Pasangan, Keramik dan Finishing"
+ },
+ {
+  "kunci": "wproof",
+  "nama": "Coating waterproofing",
+  "satuan": "kg",
+  "hargaAcuan": 70000,
+  "kategori": "Bahan",
+  "kelompok": "Pasangan, Keramik dan Finishing"
+ },
+ {
+  "kunci": "keramik_p",
+  "nama": "Keramik lantai 40x40 polished",
+  "satuan": "m²",
+  "hargaAcuan": 95000,
+  "kategori": "Bahan",
+  "kelompok": "Pasangan, Keramik dan Finishing"
+ },
+ {
+  "kunci": "keramik_m",
+  "nama": "Keramik lantai 40x40 matte",
+  "satuan": "m²",
+  "hargaAcuan": 80000,
+  "kategori": "Bahan",
+  "kelompok": "Pasangan, Keramik dan Finishing"
+ },
+ {
+  "kunci": "keramik_d",
+  "nama": "Keramik dinding 20x20",
+  "satuan": "m²",
+  "hargaAcuan": 65000,
+  "kategori": "Bahan",
+  "kelompok": "Pasangan, Keramik dan Finishing"
+ },
+ {
+  "kunci": "perekat",
+  "nama": "Perekat keramik (thin bed)",
+  "satuan": "kg",
+  "hargaAcuan": 6000,
+  "kategori": "Bahan",
+  "kelompok": "Pasangan, Keramik dan Finishing"
+ },
+ {
+  "kunci": "nat",
+  "nama": "Nat keramik",
+  "satuan": "kg",
+  "hargaAcuan": 12000,
+  "kategori": "Bahan",
+  "kelompok": "Pasangan, Keramik dan Finishing"
+ },
+ {
+  "kunci": "paving",
+  "nama": "Paving block t=6 cm K300",
+  "satuan": "m²",
+  "hargaAcuan": 78000,
+  "kategori": "Bahan",
+  "kelompok": "Pasangan, Keramik dan Finishing"
+ },
+ {
+  "kunci": "kanstin",
+  "nama": "Kanstin beton 15x25x40",
+  "satuan": "bh",
+  "hargaAcuan": 45000,
+  "kategori": "Bahan",
+  "kelompok": "Pasangan, Keramik dan Finishing"
+ },
+ {
+  "kunci": "hardener",
+  "nama": "Floor hardener",
+  "satuan": "kg",
+  "hargaAcuan": 8000,
+  "kategori": "Bahan",
+  "kelompok": "Pasangan, Keramik dan Finishing"
+ },
+ {
+  "kunci": "sealer_joint",
+  "nama": "Joint sealer aspal",
+  "satuan": "kg",
+  "hargaAcuan": 30000,
+  "kategori": "Bahan",
+  "kelompok": "Pasangan, Keramik dan Finishing"
+ },
+ {
+  "kunci": "plastik",
+  "nama": "Plastik cor 0,2 mm",
+  "satuan": "m²",
+  "hargaAcuan": 3500,
+  "kategori": "Bahan",
+  "kelompok": "Pasangan, Keramik dan Finishing"
+ },
+ {
+  "kunci": "pvc05",
+  "nama": "Pipa PVC AW ½\"",
+  "satuan": "m¹",
+  "hargaAcuan": 9000,
+  "kategori": "Bahan",
+  "kelompok": "Pipa dan Plumbing"
+ },
+ {
+  "kunci": "pvc075",
+  "nama": "Pipa PVC AW ¾\"",
+  "satuan": "m¹",
+  "hargaAcuan": 12500,
+  "kategori": "Bahan",
+  "kelompok": "Pipa dan Plumbing"
+ },
+ {
+  "kunci": "pvc1",
+  "nama": "Pipa PVC AW 1\"",
+  "satuan": "m¹",
+  "hargaAcuan": 19000,
+  "kategori": "Bahan",
+  "kelompok": "Pipa dan Plumbing"
+ },
+ {
+  "kunci": "pvc2",
+  "nama": "Pipa PVC AW 2\"",
+  "satuan": "m¹",
+  "hargaAcuan": 40000,
+  "kategori": "Bahan",
+  "kelompok": "Pipa dan Plumbing"
+ },
+ {
+  "kunci": "pvc3",
+  "nama": "Pipa PVC D 3\"",
+  "satuan": "m¹",
+  "hargaAcuan": 62000,
+  "kategori": "Bahan",
+  "kelompok": "Pipa dan Plumbing"
+ },
+ {
+  "kunci": "pvc4",
+  "nama": "Pipa PVC D 4\"",
+  "satuan": "m¹",
+  "hargaAcuan": 90000,
+  "kategori": "Bahan",
+  "kelompok": "Pipa dan Plumbing"
+ },
+ {
+  "kunci": "fit",
+  "nama": "Fitting, lem dan perlengkapan pipa",
+  "satuan": "ls",
+  "hargaAcuan": 1,
+  "kategori": "Bahan",
+  "kelompok": "Pipa dan Plumbing"
+ },
+ {
+  "kunci": "nym15",
+  "nama": "Kabel NYM 2x1,5 mm²",
+  "satuan": "m¹",
+  "hargaAcuan": 9500,
+  "kategori": "Bahan",
+  "kelompok": "Kelistrikan"
+ },
+ {
+  "kunci": "nym25",
+  "nama": "Kabel NYM 2x2,5 mm²",
+  "satuan": "m¹",
+  "hargaAcuan": 14500,
+  "kategori": "Bahan",
+  "kelompok": "Kelistrikan"
+ },
+ {
+  "kunci": "conduit",
+  "nama": "Pipa conduit PVC 5/8\"",
+  "satuan": "m¹",
+  "hargaAcuan": 5000,
+  "kategori": "Bahan",
+  "kelompok": "Kelistrikan"
+ },
+ {
+  "kunci": "tdus",
+  "nama": "T-dus, klem, lasdop dan isolasi",
+  "satuan": "set",
+  "hargaAcuan": 25000,
+  "kategori": "Bahan",
+  "kelompok": "Kelistrikan"
+ },
+ {
+  "kunci": "nyy2x4",
+  "nama": "Kabel NYY 2x4 mm² Supreme",
+  "satuan": "m¹",
+  "hargaAcuan": 52000,
+  "kategori": "Bahan",
+  "kelompok": "Kelistrikan"
+ },
+ {
+  "kunci": "nyy4x6",
+  "nama": "Kabel NYY 4x6 mm² Supreme",
+  "satuan": "m¹",
+  "hargaAcuan": 130000,
+  "kategori": "Bahan",
+  "kelompok": "Kelistrikan"
+ },
+ {
+  "kunci": "nyy4x25",
+  "nama": "Kabel NYY 4x2,5 mm² Supreme",
+  "satuan": "m¹",
+  "hargaAcuan": 48000,
+  "kategori": "Bahan",
+  "kelompok": "Kelistrikan"
+ },
+ {
+  "kunci": "sparing",
+  "nama": "Pipa PVC listrik ¾\" (sparing)",
+  "satuan": "m¹",
+  "hargaAcuan": 9000,
+  "kategori": "Bahan",
+  "kelompok": "Kelistrikan"
+ },
+ {
+  "kunci": "pekerja",
+  "nama": "Pekerja",
+  "satuan": "OH",
+  "hargaAcuan": 160000,
+  "kategori": "Upah",
+  "kelompok": "Tenaga Kerja"
+ },
+ {
+  "kunci": "t_batu",
+  "nama": "Tukang batu",
+  "satuan": "OH",
+  "hargaAcuan": 210000,
+  "kategori": "Upah",
+  "kelompok": "Tenaga Kerja"
+ },
+ {
+  "kunci": "t_kayu",
+  "nama": "Tukang kayu",
+  "satuan": "OH",
+  "hargaAcuan": 210000,
+  "kategori": "Upah",
+  "kelompok": "Tenaga Kerja"
+ },
+ {
+  "kunci": "t_besi",
+  "nama": "Tukang besi",
+  "satuan": "OH",
+  "hargaAcuan": 210000,
+  "kategori": "Upah",
+  "kelompok": "Tenaga Kerja"
+ },
+ {
+  "kunci": "t_las",
+  "nama": "Tukang las",
+  "satuan": "OH",
+  "hargaAcuan": 230000,
+  "kategori": "Upah",
+  "kelompok": "Tenaga Kerja"
+ },
+ {
+  "kunci": "t_listrik",
+  "nama": "Tukang listrik",
+  "satuan": "OH",
+  "hargaAcuan": 225000,
+  "kategori": "Upah",
+  "kelompok": "Tenaga Kerja"
+ },
+ {
+  "kunci": "t_cat",
+  "nama": "Tukang cat",
+  "satuan": "OH",
+  "hargaAcuan": 200000,
+  "kategori": "Upah",
+  "kelompok": "Tenaga Kerja"
+ },
+ {
+  "kunci": "t_pipa",
+  "nama": "Tukang pipa/plumbing",
+  "satuan": "OH",
+  "hargaAcuan": 220000,
+  "kategori": "Upah",
+  "kelompok": "Tenaga Kerja"
+ },
+ {
+  "kunci": "t_atap",
+  "nama": "Tukang atap/rangka baja ringan",
+  "satuan": "OH",
+  "hargaAcuan": 225000,
+  "kategori": "Upah",
+  "kelompok": "Tenaga Kerja"
+ },
+ {
+  "kunci": "kepala",
+  "nama": "Kepala tukang",
+  "satuan": "OH",
+  "hargaAcuan": 235000,
+  "kategori": "Upah",
+  "kelompok": "Tenaga Kerja"
+ },
+ {
+  "kunci": "mandor",
+  "nama": "Mandor",
+  "satuan": "OH",
+  "hargaAcuan": 255000,
+  "kategori": "Upah",
+  "kelompok": "Tenaga Kerja"
+ },
+ {
+  "kunci": "operator",
+  "nama": "Operator alat berat",
+  "satuan": "OH",
+  "hargaAcuan": 360000,
+  "kategori": "Upah",
+  "kelompok": "Tenaga Kerja"
+ },
+ {
+  "kunci": "sopir",
+  "nama": "Sopir dump truck",
+  "satuan": "OH",
+  "hargaAcuan": 240000,
+  "kategori": "Upah",
+  "kelompok": "Tenaga Kerja"
+ },
+ {
+  "kunci": "surveyor",
+  "nama": "Juru ukur (surveyor)",
+  "satuan": "OH",
+  "hargaAcuan": 350000,
+  "kategori": "Upah",
+  "kelompok": "Tenaga Kerja"
+ },
+ {
+  "kunci": "t_pasang",
+  "nama": "Tukang pasang (finishing/komponen)",
+  "satuan": "OH",
+  "hargaAcuan": 215000,
+  "kategori": "Upah",
+  "kelompok": "Tenaga Kerja"
+ },
+ {
+  "kunci": "excavator",
+  "nama": "Sewa excavator",
+  "satuan": "jam",
+  "hargaAcuan": 700000,
+  "kategori": "Alat dan Angkutan",
+  "kelompok": "Sewa Alat"
+ },
+ {
+  "kunci": "dozer",
+  "nama": "Sewa bulldozer",
+  "satuan": "jam",
+  "hargaAcuan": 750000,
+  "kategori": "Alat dan Angkutan",
+  "kelompok": "Sewa Alat"
+ },
+ {
+  "kunci": "roller",
+  "nama": "Sewa vibro roller 12 ton",
+  "satuan": "jam",
+  "hargaAcuan": 650000,
+  "kategori": "Alat dan Angkutan",
+  "kelompok": "Sewa Alat"
+ },
+ {
+  "kunci": "watertank",
+  "nama": "Sewa mobil tangki air",
+  "satuan": "jam",
+  "hargaAcuan": 350000,
+  "kategori": "Alat dan Angkutan",
+  "kelompok": "Sewa Alat"
+ },
+ {
+  "kunci": "stamper",
+  "nama": "Sewa stamper (tamper)",
+  "satuan": "hari",
+  "hargaAcuan": 300000,
+  "kategori": "Alat dan Angkutan",
+  "kelompok": "Sewa Alat"
+ },
+ {
+  "kunci": "vibrator",
+  "nama": "Sewa vibrator beton",
+  "satuan": "hari",
+  "hargaAcuan": 150000,
+  "kategori": "Alat dan Angkutan",
+  "kelompok": "Sewa Alat"
+ },
+ {
+  "kunci": "mixer",
+  "nama": "Sewa concrete mixer 0,35 m³",
+  "satuan": "hari",
+  "hargaAcuan": 250000,
+  "kategori": "Alat dan Angkutan",
+  "kelompok": "Sewa Alat"
+ },
+ {
+  "kunci": "tripod",
+  "nama": "Sewa alat pancang (tripod/hammer)",
+  "satuan": "hari",
+  "hargaAcuan": 450000,
+  "kategori": "Alat dan Angkutan",
+  "kelompok": "Sewa Alat"
+ },
+ {
+  "kunci": "las",
+  "nama": "Sewa mesin las dan perlengkapan",
+  "satuan": "hari",
+  "hargaAcuan": 200000,
+  "kategori": "Alat dan Angkutan",
+  "kelompok": "Sewa Alat"
+ },
+ {
+  "kunci": "bantu",
+  "nama": "Alat bantu dan peralatan kecil",
+  "satuan": "ls",
+  "hargaAcuan": 1000000,
+  "kategori": "Alat dan Angkutan",
+  "kelompok": "Alat Bantu"
+ },
+ {
+  "kunci": "angkut_tanah",
+  "nama": "Angkutan material urug dengan dump truck 8 m³",
+  "satuan": "m³",
+  "hargaAcuan": 65000,
+  "kategori": "Alat dan Angkutan",
+  "kelompok": "Angkutan"
+ },
+ {
+  "kunci": "angkut_bahan",
+  "nama": "Angkutan dan bongkar muat material ke lokasi",
+  "satuan": "ls",
+  "hargaAcuan": 1000000,
+  "kategori": "Alat dan Angkutan",
+  "kelompok": "Angkutan"
+ },
+ {
+  "kunci": "solar",
+  "nama": "BBM solar",
+  "satuan": "ltr",
+  "hargaAcuan": 14000,
+  "kategori": "Alat dan Angkutan",
+  "kelompok": "BBM"
+ },
+ {
+  "kunci": "bensin",
+  "nama": "BBM bensin",
+  "satuan": "ltr",
+  "hargaAcuan": 13500,
+  "kategori": "Alat dan Angkutan",
+  "kelompok": "BBM"
+ },
+ {
+  "kunci": "hol4040",
+  "nama": "Hollow galvanis 40x40 t=1,6 (6 m)",
+  "satuan": "btg",
+  "hargaAcuan": 150000,
+  "kategori": "Bahan",
+  "kelompok": "Besi Profil, Pipa Baja dan Plat"
+ },
+ {
+  "kunci": "hol4060",
+  "nama": "Hollow galvanis 40x60 t=1,6 (6 m)",
+  "satuan": "btg",
+  "hargaAcuan": 215000,
+  "kategori": "Bahan",
+  "kelompok": "Besi Profil, Pipa Baja dan Plat"
+ },
+ {
+  "kunci": "plat2",
+  "nama": "Plat bordes 2,3 mm 120x240",
+  "satuan": "lbr",
+  "hargaAcuan": 780000,
+  "kategori": "Bahan",
+  "kelompok": "Besi Profil, Pipa Baja dan Plat"
+ },
+ {
+  "kunci": "siku50",
+  "nama": "Besi siku 50.50.5 (6 m)",
+  "satuan": "btg",
+  "hargaAcuan": 330000,
+  "kategori": "Bahan",
+  "kelompok": "Besi Profil, Pipa Baja dan Plat"
+ },
+ {
+  "kunci": "siku40",
+  "nama": "Besi siku 40.40.4 (6 m)",
+  "satuan": "btg",
+  "hargaAcuan": 195000,
+  "kategori": "Bahan",
+  "kelompok": "Besi Profil, Pipa Baja dan Plat"
+ },
+ {
+  "kunci": "gip6",
+  "nama": "Pipa baja galvanis 6\" t=3 mm",
+  "satuan": "m¹",
+  "hargaAcuan": 420000,
+  "kategori": "Bahan",
+  "kelompok": "Besi Profil, Pipa Baja dan Plat"
+ },
+ {
+  "kunci": "gip3",
+  "nama": "Pipa baja galvanis 3\" t=2 mm",
+  "satuan": "m¹",
+  "hargaAcuan": 210000,
+  "kategori": "Bahan",
+  "kelompok": "Besi Profil, Pipa Baja dan Plat"
+ },
+ {
+  "kunci": "gip2",
+  "nama": "Pipa galvanis 2\" medium (6 m)",
+  "satuan": "btg",
+  "hargaAcuan": 520000,
+  "kategori": "Bahan",
+  "kelompok": "Besi Profil, Pipa Baja dan Plat"
+ },
+ {
+  "kunci": "gip15",
+  "nama": "Pipa galvanis 1,5\" medium (6 m)",
+  "satuan": "btg",
+  "hargaAcuan": 400000,
+  "kategori": "Bahan",
+  "kelompok": "Besi Profil, Pipa Baja dan Plat"
+ },
+ {
+  "kunci": "slot",
+  "nama": "Pekerjaan perforasi/slot pipa screen",
+  "satuan": "m¹",
+  "hargaAcuan": 95000,
+  "kategori": "Bahan",
+  "kelompok": "Besi Profil, Pipa Baja dan Plat"
+ },
+ {
+  "kunci": "elektroda",
+  "nama": "Elektroda las RB 26",
+  "satuan": "kg",
+  "hargaAcuan": 32000,
+  "kategori": "Bahan",
+  "kelompok": "Besi Profil, Pipa Baja dan Plat"
+ },
+ {
+  "kunci": "meni",
+  "nama": "Cat dasar besi (meni)",
+  "satuan": "kg",
+  "hargaAcuan": 50000,
+  "kategori": "Bahan",
+  "kelompok": "Besi Profil, Pipa Baja dan Plat"
+ },
+ {
+  "kunci": "cat_besi",
+  "nama": "Cat finish besi/duco",
+  "satuan": "ltr",
+  "hargaAcuan": 90000,
+  "kategori": "Bahan",
+  "kelompok": "Besi Profil, Pipa Baja dan Plat"
+ },
+ {
+  "kunci": "plat_huruf",
+  "nama": "Plat galvanis cut huruf timbul 20x25 + cat duco",
+  "satuan": "bh",
+  "hargaAcuan": 75000,
+  "kategori": "Bahan",
+  "kelompok": "Besi Profil, Pipa Baja dan Plat"
+ },
+ {
+  "kunci": "plat_logo",
+  "nama": "Plat galvanis logo KKP dia.40 cat duco",
+  "satuan": "unit",
+  "hargaAcuan": 250000,
+  "kategori": "Bahan",
+  "kelompok": "Besi Profil, Pipa Baja dan Plat"
+ },
+ {
+  "kunci": "dynab8",
+  "nama": "Dynabolt SS304 M8x100",
+  "satuan": "bh",
+  "hargaAcuan": 11000,
+  "kategori": "Bahan",
+  "kelompok": "Besi Profil, Pipa Baja dan Plat"
+ },
+ {
+  "kunci": "dynab10",
+  "nama": "Dynabolt galvanis M10",
+  "satuan": "bh",
+  "hargaAcuan": 9000,
+  "kategori": "Bahan",
+  "kelompok": "Besi Profil, Pipa Baja dan Plat"
+ },
+ {
+  "kunci": "rodcpl",
+  "nama": "Rod coupling 5/8\" galvanis",
+  "satuan": "bh",
+  "hargaAcuan": 35000,
+  "kategori": "Bahan",
+  "kelompok": "Besi Profil, Pipa Baja dan Plat"
+ },
+ {
+  "kunci": "rolling",
+  "nama": "Rolling door aluminium t=0,6 (per m², jadi)",
+  "satuan": "m²",
+  "hargaAcuan": 780000,
+  "kategori": "Bahan",
+  "kelompok": "Pintu, Jendela dan Kaca"
+ },
+ {
+  "kunci": "jalusi",
+  "nama": "Jalusi kaca nako 5 mm + rangka aluminium (jadi)",
+  "satuan": "m²",
+  "hargaAcuan": 720000,
+  "kategori": "Bahan",
+  "kelompok": "Pintu, Jendela dan Kaca"
+ },
+ {
+  "kunci": "alu4",
+  "nama": "Profil kusen aluminium 4\" ",
+  "satuan": "m¹",
+  "hargaAcuan": 115000,
+  "kategori": "Bahan",
+  "kelompok": "Pintu, Jendela dan Kaca"
+ },
+ {
+  "kunci": "daun_alu",
+  "nama": "Daun jendela aluminium tanpa kaca (jadi)",
+  "satuan": "m²",
+  "hargaAcuan": 430000,
+  "kategori": "Bahan",
+  "kelompok": "Pintu, Jendela dan Kaca"
+ },
+ {
+  "kunci": "kaca5",
+  "nama": "Kaca polos 5 mm",
+  "satuan": "m²",
+  "hargaAcuan": 130000,
+  "kategori": "Bahan",
+  "kelompok": "Pintu, Jendela dan Kaca"
+ },
+ {
+  "kunci": "kaca_es",
+  "nama": "Kaca es 5 mm",
+  "satuan": "m²",
+  "hargaAcuan": 140000,
+  "kategori": "Bahan",
+  "kelompok": "Pintu, Jendela dan Kaca"
+ },
+ {
+  "kunci": "pintu_upvc",
+  "nama": "Pintu UPVC set (kusen, daun, handle)",
+  "satuan": "unit",
+  "hargaAcuan": 700000,
+  "kategori": "Bahan",
+  "kelompok": "Pintu, Jendela dan Kaca"
+ },
+ {
+  "kunci": "hpl",
+  "nama": "HPL 120x240",
+  "satuan": "lbr",
+  "hargaAcuan": 640000,
+  "kategori": "Bahan",
+  "kelompok": "Pintu, Jendela dan Kaca"
+ },
+ {
+  "kunci": "hinge3",
+  "nama": "Engsel jendela 3\"",
+  "satuan": "psg",
+  "hargaAcuan": 18000,
+  "kategori": "Bahan",
+  "kelompok": "Pintu, Jendela dan Kaca"
+ },
+ {
+  "kunci": "hinge4",
+  "nama": "Engsel pintu 4\"",
+  "satuan": "psg",
+  "hargaAcuan": 28000,
+  "kategori": "Bahan",
+  "kelompok": "Pintu, Jendela dan Kaca"
+ },
+ {
+  "kunci": "closer",
+  "nama": "Door closer",
+  "satuan": "set",
+  "hargaAcuan": 215000,
+  "kategori": "Bahan",
+  "kelompok": "Pintu, Jendela dan Kaca"
+ },
+ {
+  "kunci": "kunci",
+  "nama": "Handel dan kunci swing",
+  "satuan": "set",
+  "hargaAcuan": 140000,
+  "kategori": "Bahan",
+  "kelompok": "Pintu, Jendela dan Kaca"
+ },
+ {
+  "kunci": "casement",
+  "nama": "Engsel dan pengait casement",
+  "satuan": "psg",
+  "hargaAcuan": 45000,
+  "kategori": "Bahan",
+  "kelompok": "Pintu, Jendela dan Kaca"
+ },
+ {
+  "kunci": "sealant",
+  "nama": "Sealant silikon",
+  "satuan": "btg",
+  "hargaAcuan": 45000,
+  "kategori": "Bahan",
+  "kelompok": "Pintu, Jendela dan Kaca"
+ },
+ {
+  "kunci": "plat_pintu",
+  "nama": "Pintu besi dobel 214x217 (plat 2 mm + rangka hollow)",
+  "satuan": "m²",
+  "hargaAcuan": 2000000,
+  "kategori": "Bahan",
+  "kelompok": "Pintu, Jendela dan Kaca"
+ },
+ {
+  "kunci": "roster_b",
+  "nama": "Roster beton 20x20",
+  "satuan": "bh",
+  "hargaAcuan": 7500,
+  "kategori": "Bahan",
+  "kelompok": "Pintu, Jendela dan Kaca"
+ },
+ {
+  "kunci": "wc",
+  "nama": "Kloset duduk monoblok",
+  "satuan": "unit",
+  "hargaAcuan": 1350000,
+  "kategori": "Bahan",
+  "kelompok": "Sanitair dan Perlengkapan"
+ },
+ {
+  "kunci": "jet",
+  "nama": "Jet washer / semprotan bidet",
+  "satuan": "bh",
+  "hargaAcuan": 95000,
+  "kategori": "Bahan",
+  "kelompok": "Sanitair dan Perlengkapan"
+ },
+ {
+  "kunci": "kran",
+  "nama": "Kran air ½\" (kuningan)",
+  "satuan": "bh",
+  "hargaAcuan": 45000,
+  "kategori": "Bahan",
+  "kelompok": "Sanitair dan Perlengkapan"
+ },
+ {
+  "kunci": "fdrain",
+  "nama": "Floor drain stainless 4\"",
+  "satuan": "bh",
+  "hargaAcuan": 85000,
+  "kategori": "Bahan",
+  "kelompok": "Sanitair dan Perlengkapan"
+ },
+ {
+  "kunci": "ac",
+  "nama": "AC split ¾ PK standar",
+  "satuan": "unit",
+  "hargaAcuan": 4200000,
+  "kategori": "Bahan",
+  "kelompok": "Sanitair dan Perlengkapan"
+ },
+ {
+  "kunci": "kipas",
+  "nama": "Kipas angin plafon",
+  "satuan": "bh",
+  "hargaAcuan": 360000,
+  "kategori": "Bahan",
+  "kelompok": "Sanitair dan Perlengkapan"
+ },
+ {
+  "kunci": "gate2",
+  "nama": "Gate valve 2\" + flange",
+  "satuan": "bh",
+  "hargaAcuan": 950000,
+  "kategori": "Bahan",
+  "kelompok": "Sanitair dan Perlengkapan"
+ },
+ {
+  "kunci": "flens",
+  "nama": "Gasket dan baut flange",
+  "satuan": "set",
+  "hargaAcuan": 120000,
+  "kategori": "Bahan",
+  "kelompok": "Sanitair dan Perlengkapan"
+ },
+ {
+  "kunci": "sock",
+  "nama": "Sock galvanis 2\"",
+  "satuan": "bh",
+  "hargaAcuan": 65000,
+  "kategori": "Bahan",
+  "kelompok": "Sanitair dan Perlengkapan"
+ },
+ {
+  "kunci": "tee",
+  "nama": "Tee galvanis 2\"",
+  "satuan": "bh",
+  "hargaAcuan": 75000,
+  "kategori": "Bahan",
+  "kelompok": "Sanitair dan Perlengkapan"
+ },
+ {
+  "kunci": "hdpe",
+  "nama": "Adapter HDPE 2\"",
+  "satuan": "bh",
+  "hargaAcuan": 85000,
+  "kategori": "Bahan",
+  "kelompok": "Sanitair dan Perlengkapan"
+ },
+ {
+  "kunci": "tangki18",
+  "nama": "Tangki air FRP 18.000 liter",
+  "satuan": "unit",
+  "hargaAcuan": 46000000,
+  "kategori": "Bahan",
+  "kelompok": "Sanitair dan Perlengkapan"
+ },
+ {
+  "kunci": "toren2000",
+  "nama": "Toren air 2.000 liter (Penguin TB200)",
+  "satuan": "unit",
+  "hargaAcuan": 4300000,
+  "kategori": "Bahan",
+  "kelompok": "Sanitair dan Perlengkapan"
+ },
+ {
+  "kunci": "toren600",
+  "nama": "Toren air 600 liter (Penguin TD60)",
+  "satuan": "unit",
+  "hargaAcuan": 1050000,
+  "kategori": "Bahan",
+  "kelompok": "Sanitair dan Perlengkapan"
+ },
+ {
+  "kunci": "bf1",
+  "nama": "Biotech septic tank 1 m³",
+  "satuan": "unit",
+  "hargaAcuan": 3000000,
+  "kategori": "Bahan",
+  "kelompok": "Sanitair dan Perlengkapan"
+ },
+ {
+  "kunci": "ipal2",
+  "nama": "IPAL Biotech fiberglass 2 m³",
+  "satuan": "unit",
+  "hargaAcuan": 17500000,
+  "kategori": "Bahan",
+  "kelompok": "Sanitair dan Perlengkapan"
+ },
+ {
+  "kunci": "pompa",
+  "nama": "Pompa submersible Grundfos SP 9-10 deepwell",
+  "satuan": "unit",
+  "hargaAcuan": 52000000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "pdorong",
+  "nama": "Pompa dorong (transfer/booster) ½ HP",
+  "satuan": "unit",
+  "hargaAcuan": 1450000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "float",
+  "nama": "Water level switch vertical float",
+  "satuan": "unit",
+  "hargaAcuan": 1400000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "nyyhy25",
+  "nama": "Kabel NYYHY 3x2,5 mm²",
+  "satuan": "m¹",
+  "hargaAcuan": 38000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "nyyhy15",
+  "nama": "Kabel NYYHY 3x1,5 mm²",
+  "satuan": "m¹",
+  "hargaAcuan": 25000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "nym22",
+  "nama": "Kabel NYM 3x2,5 mm²",
+  "satuan": "m¹",
+  "hargaAcuan": 21000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "rg6",
+  "nama": "Kabel RG6 + outlet TV",
+  "satuan": "ttk",
+  "hargaAcuan": 220000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "box_p",
+  "nama": "Box panel IP65 60x40x20",
+  "satuan": "unit",
+  "hargaAcuan": 1350000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "mcb3_63",
+  "nama": "MCB 3 phase 63 A",
+  "satuan": "bh",
+  "hargaAcuan": 850000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "mcb3_40",
+  "nama": "MCB 3 phase 40 A",
+  "satuan": "bh",
+  "hargaAcuan": 650000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "mcb1",
+  "nama": "MCB 1 phase 6-16 A",
+  "satuan": "bh",
+  "hargaAcuan": 55000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "mcb2",
+  "nama": "MCB 2 A",
+  "satuan": "bh",
+  "hargaAcuan": 35000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "kontaktor",
+  "nama": "Kontaktor 3 phase 25 A",
+  "satuan": "bh",
+  "hargaAcuan": 480000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "tol",
+  "nama": "Thermal overload relay",
+  "satuan": "bh",
+  "hargaAcuan": 380000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "pfr",
+  "nama": "Phase failure relay",
+  "satuan": "bh",
+  "hargaAcuan": 350000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "sel",
+  "nama": "Selector, push button dan lampu indikator",
+  "satuan": "set",
+  "hargaAcuan": 300000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "busbar",
+  "nama": "Busbar, terminal dan aksesoris panel",
+  "satuan": "ls",
+  "hargaAcuan": 450000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "lvmdp",
+  "nama": "Panel distribusi kawasan LVMDP/PDTR (jadi, termasuk MCCB dan metering)",
+  "satuan": "unit",
+  "hargaAcuan": 17500000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "pju7s",
+  "nama": "Tiang PJU 7 m oktagonal single arm HDG",
+  "satuan": "unit",
+  "hargaAcuan": 3200000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "pju7d",
+  "nama": "Tiang PJU 7 m oktagonal double arm HDG",
+  "satuan": "unit",
+  "hargaAcuan": 3700000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "pju4d",
+  "nama": "Tiang PJU 4 m oktagonal double arm HDG + ornamen + cat marine",
+  "satuan": "unit",
+  "hargaAcuan": 2900000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "led100",
+  "nama": "Armatur lampu LED PJU 100 watt",
+  "satuan": "unit",
+  "hargaAcuan": 1350000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "led40",
+  "nama": "Armatur lampu LED PJU 40 watt",
+  "satuan": "unit",
+  "hargaAcuan": 650000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "angkur",
+  "nama": "Angkur baut tiang PJU (set)",
+  "satuan": "set",
+  "hargaAcuan": 250000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "bc",
+  "nama": "Kabel BC 16 mm² (grounding)",
+  "satuan": "m¹",
+  "hargaAcuan": 55000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "rodgr",
+  "nama": "Batang grounding Cu 5/8\" x 3 m",
+  "satuan": "bh",
+  "hargaAcuan": 380000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "klem",
+  "nama": "Klem grounding dan aksesoris",
+  "satuan": "set",
+  "hargaAcuan": 60000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "dl",
+  "nama": "Lampu downlight LED 9 watt 5\"",
+  "satuan": "bh",
+  "hargaAcuan": 55000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "stop",
+  "nama": "Stop kontak",
+  "satuan": "bh",
+  "hargaAcuan": 22000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "saklar1",
+  "nama": "Saklar tunggal",
+  "satuan": "bh",
+  "hargaAcuan": 18000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "saklar2",
+  "nama": "Saklar ganda",
+  "satuan": "bh",
+  "hargaAcuan": 28000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "box8",
+  "nama": "Box panel MCB 8 group",
+  "satuan": "unit",
+  "hargaAcuan": 420000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "box4",
+  "nama": "Box panel MCB 4 group",
+  "satuan": "unit",
+  "hargaAcuan": 280000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "boxk",
+  "nama": "Box panel kontroler",
+  "satuan": "unit",
+  "hargaAcuan": 650000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "relay",
+  "nama": "Relay dan timer kontrol",
+  "satuan": "set",
+  "hargaAcuan": 450000,
+  "kategori": "Bahan",
+  "kelompok": "Elektrikal dan Panel"
+ },
+ {
+  "kunci": "rumput",
+  "nama": "Rumput gajah mini",
+  "satuan": "m²",
+  "hargaAcuan": 8500,
+  "kategori": "Bahan",
+  "kelompok": "Tanaman dan Lansekap"
+ },
+ {
+  "kunci": "humus",
+  "nama": "Tanah humus",
+  "satuan": "m³",
+  "hargaAcuan": 160000,
+  "kategori": "Bahan",
+  "kelompok": "Tanaman dan Lansekap"
+ },
+ {
+  "kunci": "pupuk",
+  "nama": "Pupuk kandang",
+  "satuan": "kg",
+  "hargaAcuan": 2500,
+  "kategori": "Bahan",
+  "kelompok": "Tanaman dan Lansekap"
+ },
+ {
+  "kunci": "pohon_m",
+  "nama": "Bibit mangga tinggi 2-3 m (polybag 50 l)",
+  "satuan": "btg",
+  "hargaAcuan": 300000,
+  "kategori": "Bahan",
+  "kelompok": "Tanaman dan Lansekap"
+ },
+ {
+  "kunci": "pohon_l",
+  "nama": "Bibit lengkeng tinggi 2-3 m (polybag 50 l)",
+  "satuan": "btg",
+  "hargaAcuan": 350000,
+  "kategori": "Bahan",
+  "kelompok": "Tanaman dan Lansekap"
+ },
+ {
+  "kunci": "pohon_r",
+  "nama": "Bibit rambutan tinggi 2-3 m (polybag 50 l)",
+  "satuan": "btg",
+  "hargaAcuan": 275000,
+  "kategori": "Bahan",
+  "kelompok": "Tanaman dan Lansekap"
+ },
+ {
+  "kunci": "pohon_a",
+  "nama": "Bibit alpukat tinggi 2-3 m (polybag 50 l)",
+  "satuan": "btg",
+  "hargaAcuan": 325000,
+  "kategori": "Bahan",
+  "kelompok": "Tanaman dan Lansekap"
+ },
+ {
+  "kunci": "gravel",
+  "nama": "Kerikil gravel pack 3-6 mm",
+  "satuan": "m³",
+  "hargaAcuan": 650000,
+  "kategori": "Bahan",
+  "kelompok": "Semen, Pasir, Batu dan Agregat"
+ },
+ {
+  "kunci": "grout",
+  "nama": "Semen grouting non-shrink 25 kg",
+  "satuan": "zak",
+  "hargaAcuan": 142000,
+  "kategori": "Bahan",
+  "kelompok": "Semen, Pasir, Batu dan Agregat"
+ },
+ {
+  "kunci": "ongkir_pju",
+  "nama": "Ongkos kirim tiang PJU ke lokasi",
+  "satuan": "unit",
+  "hargaAcuan": 1400000,
+  "kategori": "Alat dan Angkutan",
+  "kelompok": "Angkutan"
+ },
+ {
+  "kunci": "fit_unit",
+  "nama": "Fitting, sambungan dan perlengkapan pipa (paket)",
+  "satuan": "set",
+  "hargaAcuan": 150000,
+  "kategori": "Bahan",
+  "kelompok": "Pipa dan Plumbing"
+ },
+ {
+  "kunci": "fit_pipa",
+  "nama": "Fitting, lem dan perlengkapan pipa",
+  "satuan": "m¹",
+  "hargaAcuan": 4500,
+  "kategori": "Bahan",
+  "kelompok": "Pipa dan Plumbing"
+ },
+ {
+  "kunci": "pvc15",
+  "nama": "Pipa PVC AW 1½\"",
+  "satuan": "m¹",
+  "hargaAcuan": 28000,
+  "kategori": "Bahan",
+  "kelompok": "Pipa dan Plumbing"
+ },
+ {
+  "kunci": "pvc_s",
+  "nama": "Pipa PVC AW ¾\" untuk sparing kabel",
+  "satuan": "m¹",
+  "hargaAcuan": 12500,
+  "kategori": "Bahan",
+  "kelompok": "Kelistrikan"
+ },
+ {
+  "kunci": "warn",
+  "nama": "Pita peringatan kabel",
+  "satuan": "m¹",
+  "hargaAcuan": 1500,
+  "kategori": "Bahan",
+  "kelompok": "Kelistrikan"
+ }
+]
