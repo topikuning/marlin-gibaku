@@ -157,9 +157,11 @@ describe("impor RAB menyimpan backup volume & analisa", () => {
       ["Tukang batu", 0.5],
       ["Mandor", 0.15],
     ]);
-    // Item tanpa analisa di berkas dan tanpa padanan AHSP: tetap tanpa analisa, tidak ditebak.
+    // Item tanpa analisa di berkas dan tanpa padanan AHSP: diurai templat RAPL
+    // (keputusan user 2026-11-28, DECISIONS 802) – selalu bersumber "templat",
+    // tidak pernah disamarkan sebagai analisa kontrak.
     const n13 = flat.find((n) => n.excelRow === 13)!;
-    expect(rapl.find((x) => x.lineageKey === n13.lineageKey)!.analisa).toBeNull();
+    expect(rapl.find((x) => x.lineageKey === n13.lineageKey)!.analisa?.sumber).toBe("templat");
 
     // Harga satuan dasar: harga komponen analisa kontrak jadi BAWAAN, jadi
     // biaya item batu belah = volume × Σ(koef × harga) = nilai RAB sebelum

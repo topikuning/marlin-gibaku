@@ -24,6 +24,25 @@ export type KategoriRapl =
   | "Jasa, Subkon dan Biaya Resmi"
   | "Biaya Umum Lapangan";
 
+/**
+ * Kategori templat → kategori komponen RAPL MARLIN (`bahan`/`upah`/`alat`
+ * yang sudah dipakai analisa kontrak & AHSP; `jasa` dan `umum` baru).
+ */
+export function kategoriRaplMarlin(k: KategoriRapl): string {
+  switch (k) {
+    case "Bahan":
+      return "bahan";
+    case "Upah":
+      return "upah";
+    case "Alat dan Angkutan":
+      return "alat";
+    case "Jasa, Subkon dan Biaya Resmi":
+      return "jasa";
+    case "Biaya Umum Lapangan":
+      return "umum";
+  }
+}
+
 export const URUTAN_KATEGORI_RAPL: readonly KategoriRapl[] = [
   "Bahan",
   "Upah",

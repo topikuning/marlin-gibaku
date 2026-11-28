@@ -41,7 +41,9 @@ export async function itemTanpaAnalisa(locationId: string) {
   const menunggu = new Set(draf.map((d) => d.lineageKey));
   const tanpa = items.filter(
     (it) =>
-      it.analisa === null &&
+      // Templat "GEN" hanya satu baris pengadaan tanpa rincian – item itu
+      // tetap sasaran draf analisa AI (DECISIONS 802).
+      (it.analisa === null || (it.analisa.sumber === "templat" && it.analisa.templat === "GEN")) &&
       it.volume !== null &&
       it.rincian?.hargaBorongan == null &&
       (it.rincian?.tambahan.length ?? 0) === 0 &&

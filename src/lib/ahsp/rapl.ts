@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { normalisasiSatuan } from "./cocok";
 import { itemRabAktif, metodeDisetujui } from "./padanan";
 import { analisaAiDiterima, analisaKontrakLokasi } from "./analisa-kontrak";
+import { kategoriRaplMarlin, uraiItem } from "@/lib/rapl-templat/urai";
 import {
   agregasiKebutuhan,
   hitungItemRapl,
@@ -38,7 +39,7 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
   if (items.length === 0) return [];
   const tanda = [...new Set(items.map((i) => i.tanda))];
 
-  const [padanan, rincian, petaKontrak, petaAi] = await Promise.all([
+  const [padanan, rincian, petaKontrak, petaAi, induk] = await Promise.all([
     tanda.length
       ? db.ahspPadanan.findMany({
           where: { tanda: { in: tanda }, entryId: { not: null } },
@@ -81,7 +82,14 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
      */
     analisaKontrakLokasi(locationId),
     analisaAiDiterima(locationId),
+    // Judul kelompok tepat di atas item – dipakai templat RAPL untuk baris
+    // "Pengadaan barang" dan ongkos kirim yang menyebut barangnya.
+    db.rabNode.findMany({
+      where: { id: { in: items.map((i) => i.id) } },
+      select: { id: true, parent: { select: { name: true } } },
+    }),
   ]);
+  const judulInduk = new Map(induk.map((n) => [n.id, n.parent?.name ?? ""]));
 
   // Hanya padanan yang sudah ada yang menyetujui yang boleh menjadi angka.
   // Usulan mesin sengaja diperlakukan seperti tidak ada padanan — bukan
@@ -162,9 +170,44 @@ export async function itemUntukRapl(locationId: string): Promise<ItemUntukRapl[]
             satuanNorm: normalisasiSatuan(it.unit),
             komponen: ai.komponen,
           }
-        : null,
+        : analisaTemplat(it, judulInduk.get(it.id) ?? ""),
     };
   });
+}
+
+/**
+ * TEMPLAT RAPL sebagai sumber KEEMPAT (keputusan user 2026-11-28, DECISIONS
+ * 802): item yang tidak punya analisa kontrak, padanan AHSP yang disetujui,
+ * maupun usulan AI yang diterima diurai otomatis dari uraiannya – tanpa
+ * persetujuan per uraian, supaya RAPL jadi sekali klik. Selalu bersumber
+ * `templat` di layar dan Excel.
+ *
+ * Koefisiennya per satuan item, jadi satuannya sepadan dengan item. Harga
+ * acuan dan perkiraan dari harga satuan RAB hanya RUJUKAN (`hargaAcuan`) –
+ * tidak pernah dipakai menghitung biaya.
+ */
+function analisaTemplat(
+  it: { name: string; unit: string | null; volume: number | null; amount: bigint },
+  induk: string,
+): NonNullable<ItemUntukRapl["analisa"]> {
+  const h = uraiItem({ uraian: it.name, satuan: it.unit ?? "", induk });
+  const hargaSatuanRab = it.volume && it.volume > 0 ? Number(it.amount) / it.volume : null;
+  return {
+    sumber: "templat",
+    templat: h.templat,
+    kode: `Templat ${h.templat}`,
+    uraian: it.name,
+    satuanNorm: normalisasiSatuan(it.unit),
+    komponen: h.komponen.map((k) => ({
+      kategori: kategoriRaplMarlin(k.kategori),
+      nama: k.nama,
+      satuan: k.satuan,
+      koefisien: k.koefisien,
+      hargaAcuan:
+        k.hargaAcuan ??
+        (k.faktorHargaRab != null && hargaSatuanRab != null ? Math.round(hargaSatuanRab * k.faktorHargaRab) : null),
+    })),
+  };
 }
 
 export async function simulasiRapl(locationId: string): Promise<SimulasiRapl> {

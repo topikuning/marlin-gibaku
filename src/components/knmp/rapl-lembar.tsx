@@ -20,6 +20,9 @@ const LABEL: Record<string, string> = {
   upah: "Upah / tenaga kerja",
   alat: "Peralatan",
   fasilitas: "Fasilitas",
+  // Templat RAPL (DECISIONS 802).
+  jasa: "Jasa, subkon & biaya resmi",
+  umum: "Biaya umum lapangan",
 };
 
 export function RaplLembar({

@@ -62,7 +62,7 @@ export type ItemRaplRow = {
   biaya: string;
   komponenBelumBerharga: number;
   /** Asal analisa: berkas kontrak (dasar utama), padanan AHSP PUPR, atau usulan AI yang diterima. */
-  sumberAnalisa: "kontrak" | "ahsp" | "ai" | null;
+  sumberAnalisa: "kontrak" | "ahsp" | "ai" | "templat" | null;
   lengkap: boolean;
   margin: string | null;
   marginPersen: number | null;
@@ -82,9 +82,11 @@ const LABEL_CARA: Record<string, string> = {
 };
 
 /** Asal analisa selain AHSP – disebut apa adanya, tidak disamakan dengan AHSP. */
-const LABEL_SUMBER: Record<"kontrak" | "ai", string> = {
+const LABEL_SUMBER: Record<"kontrak" | "ai" | "templat", string> = {
   kontrak: "Dari analisa kontrak",
   ai: "Usulan AI (diterima)",
+  // Templat RAPL referensi (DECISIONS 802) – dipakai langsung, selalu disebut.
+  templat: "Dari templat RAPL",
 };
 
 const LABEL_ALASAN: Record<string, string> = {
@@ -358,7 +360,9 @@ export function RincianPanel({
                                 ? "analisa kontrak"
                                 : dibuka.sumberAnalisa === "ai"
                                   ? "usulan AI"
-                                  : "AHSP"
+                                  : dibuka.sumberAnalisa === "templat"
+                                    ? "templat"
+                                    : "AHSP"
                               : "tambahan"}
                           </Badge>
                         </p>
@@ -404,7 +408,9 @@ export function RincianPanel({
                     ? "Koefisien analisa kontrak diambil dari berkas RAB dan tidak bisa diubah di sini. "
                     : dibuka.sumberAnalisa === "ai"
                       ? "Koefisien ini usulan AI yang sudah diterima, bukan angka resmi. Untuk menggantinya, cabut usulannya di bagian Draf analisa AI. "
-                      : "Koefisien bertanda AHSP tidak bisa diubah, karena itu angka resmi yang harus bisa dipertanggungjawabkan saat diperiksa. "}
+                      : dibuka.sumberAnalisa === "templat"
+                        ? "Koefisien ini dari templat RAPL (diurai otomatis dari uraian item), bukan angka resmi. Item yang punya analisa kontrak, padanan AHSP yang disetujui, atau usulan AI yang diterima memakai itu lebih dulu. "
+                        : "Koefisien bertanda AHSP tidak bisa diubah, karena itu angka resmi yang harus bisa dipertanggungjawabkan saat diperiksa. "}
                   Yang bisa Anda lakukan: menambah komponen yang belum ada.
                 </p>
               ) : null}

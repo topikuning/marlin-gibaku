@@ -27,6 +27,9 @@ export const LABEL_KATEGORI: Record<string, string> = {
   upah: "Upah",
   alat: "Alat",
   fasilitas: "Fasilitas",
+  // Templat RAPL (DECISIONS 802).
+  jasa: "Jasa & biaya resmi",
+  umum: "Biaya umum",
 };
 
 export type BarisHargaRow = {

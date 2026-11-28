@@ -40,6 +40,13 @@ export type KomponenUntukRapl = {
    * menulis harga "Pekerja" berbeda di analisa yang berbeda.
    */
   hargaKontrak?: number | null;
+  /**
+   * Harga RUJUKAN dari templat RAPL (DECISIONS 801/802): estimasi katalog
+   * atau perkiraan dari harga satuan RAB. TIDAK PERNAH dipakai menghitung
+   * biaya – hanya ditampilkan di samping kolom harga supaya orang bisa
+   * menyalinnya bila setuju.
+   */
+  hargaAcuan?: number | null;
 };
 
 /**
@@ -72,6 +79,13 @@ export type RincianItem = {
    */
   tambahan: KomponenUntukRapl[];
 };
+
+/**
+ * Asal rincian item: `kontrak` (analisa di berkas RAB), `ahsp` (padanan PUPR
+ * disetujui), `ai` (draf AI diterima), `templat` (templat RAPL referensi user,
+ * dipakai langsung – keputusan user 2026-11-28, DECISIONS 802).
+ */
+export type SumberAnalisa = "kontrak" | "ahsp" | "ai" | "templat";
 
 export type ItemUntukRapl = {
   lineageKey: string;
@@ -106,7 +120,9 @@ export type ItemUntukRapl = {
      * AHSP PUPR yang disetujui, hanya untuk item tanpa analisa di berkas.
      * Kosong = `ahsp` (data lama).
      */
-    sumber?: "kontrak" | "ahsp" | "ai";
+    sumber?: SumberAnalisa;
+    /** Id templat RAPL bila `sumber` = `templat` (mis. `beton20`, `GEN`). */
+    templat?: string;
   } | null;
 };
 
@@ -201,7 +217,7 @@ const SKALA = 10 ** DESIMAL_KEBUTUHAN;
  * bukan hilang — terbitan berkas bisa menambah kategori kapan saja, dan yang
  * pertama kali terjadi (`fasilitas`, terbitan 5.0) nyaris lolos tanpa terlihat.
  */
-const URUTAN_KATEGORI: Record<string, number> = { upah: 0, bahan: 1, alat: 2, fasilitas: 3 };
+const URUTAN_KATEGORI: Record<string, number> = { upah: 0, bahan: 1, alat: 2, fasilitas: 3, jasa: 4, umum: 5 };
 
 
 /**
@@ -591,7 +607,7 @@ export type BiayaItem = {
   nilaiRab: bigint;
   cara: CaraItem;
   /** Asal analisa yang dipakai: berkas kontrak atau padanan AHSP PUPR. null = tanpa analisa. */
-  sumberAnalisa: "kontrak" | "ahsp" | "ai" | null;
+  sumberAnalisa: SumberAnalisa | null;
   komponen: KomponenItem[];
   /** Σ biaya komponen yang SUDAH berharga; borongan = harga × volume. */
   biaya: bigint;

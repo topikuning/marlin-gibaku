@@ -94,6 +94,7 @@ hilang.
 
 | # | Tanggal | Keputusan |
 |---|---|---|
+| 802 | 2026-11-28 | RAPL: templat jadi sumber rincian keempat (sesudah analisa kontrak, AHSP disetujui, draf AI diterima) dan dipakai langsung tanpa persetujuan per uraian (keputusan user, menggeser 326/652), selalu ditandai "templat"; harga acuan & perkiraan dari RAB hanya rujukan, tidak masuk biaya; kategori baru jasa & biaya umum; draf AI hanya untuk item templat GEN |
 | 801 | 2026-11-28 | RAPL: mesin templat pengurai item RAB ditulis ulang dari prototipe referensi user (145 templat, 200 sumber daya, aturan pengenal berurutan); harga acuan dan perkiraan dari RAB dipisah sebagai rujukan, bukan harga dipakai; 376/376 uraian keluaran prototipe terurai sama persis |
 
 ### [701-800](./decisions/701-800.md)

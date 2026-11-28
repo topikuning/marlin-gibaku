@@ -43,6 +43,9 @@ const LABEL: Record<string, string> = {
   upah: "Upah",
   alat: "Alat",
   fasilitas: "Fasilitas",
+  // Templat RAPL (DECISIONS 802).
+  jasa: "Jasa & biaya resmi",
+  umum: "Biaya umum",
 };
 
 const ALASAN_LABEL: Record<string, string> = {

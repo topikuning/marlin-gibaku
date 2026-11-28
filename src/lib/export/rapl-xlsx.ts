@@ -39,8 +39,11 @@ const JUDUL_KATEGORI: Record<string, string> = {
   upah: "UPAH / TENAGA KERJA",
   alat: "PERALATAN",
   fasilitas: "FASILITAS",
+  // Templat RAPL (DECISIONS 802).
+  jasa: "JASA, SUBKON DAN BIAYA RESMI",
+  umum: "BIAYA UMUM LAPANGAN",
 };
-const URUTAN_KATEGORI = ["bahan", "upah", "alat", "fasilitas"];
+const URUTAN_KATEGORI = ["bahan", "upah", "alat", "fasilitas", "jasa", "umum"];
 
 function urutKategori(kebutuhan: { kategori: string }[]): string[] {
   const ada = [...new Set(kebutuhan.map((k) => k.kategori))];
@@ -445,10 +448,11 @@ function tulisDilewat(wb: ExcelJS.Workbook, rapl: SimulasiRapl): void {
 
 /* ---------------------------------------------------------- rincian per item */
 
-const SUMBER_JUDUL: Record<"kontrak" | "ahsp" | "ai", string> = {
+const SUMBER_JUDUL: Record<"kontrak" | "ahsp" | "ai" | "templat", string> = {
   kontrak: "Analisa kontrak",
   ahsp: "AHSP PUPR",
   ai: "Usulan AI – diterima",
+  templat: "Templat RAPL",
 };
 
 const CARA_JUDUL: Record<string, string> = {

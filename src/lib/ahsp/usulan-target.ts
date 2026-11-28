@@ -31,7 +31,7 @@ export type HasilPilihTarget<T> = {
  * Versi pertama menjadikannya pengurut utama, dan itulah yang membuat kuota
  * habis untuk upah sebelum satu pun bahan besar kebagian.
  */
-const URUTAN_KATEGORI: Record<string, number> = { upah: 0, bahan: 1, alat: 2, fasilitas: 3 };
+const URUTAN_KATEGORI: Record<string, number> = { upah: 0, bahan: 1, alat: 2, fasilitas: 3, jasa: 4, umum: 5 };
 
 /** Kunci sumber daya untuk pemilihan — sebentuk dengan `kunciSumberDaya`. */
 export function kunciTarget(b: { kategori: string; nama: string; satuan: string }): string {
